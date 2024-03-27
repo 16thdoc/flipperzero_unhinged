@@ -2,8 +2,9 @@
 #include "toolbox/level_duration.h"
 #include "protocol_fdx_b.h"
 #include <toolbox/manchester_decoder.h>
-#include <lfrfid/tools/bit_lib.h>
+#include <bit_lib/bit_lib.h>
 #include "lfrfid_protocols.h"
+#include <furi_hal_rtc.h>
 
 #define FDX_B_ENCODED_BIT_SIZE (128)
 #define FDX_B_ENCODED_BYTE_SIZE (((FDX_B_ENCODED_BIT_SIZE) / 8))
@@ -100,7 +101,7 @@ static bool protocol_fdx_b_can_be_decoded(ProtocolFDXB* protocol) {
 
 void protocol_fdx_b_decode(ProtocolFDXB* protocol) {
     // remove parity
-    bit_lib_remove_bit_every_nth(protocol->encoded_data, 3, 13 * 9, 9);
+    bit_lib_remove_bit_every_nth(protocol->encoded_data, 3, 14 * 9, 9);
 
     // remove header pattern
     for(size_t i = 0; i < 11; i++)
@@ -118,7 +119,7 @@ void protocol_fdx_b_decode(ProtocolFDXB* protocol) {
     // 72 xxxxxxxx
     // 80 eeeeeeee	  24 bits of extra data if present.
     // 88 eeeeeeee	  eg. $123456.
-    // 92 eeeeeeee
+    // 96 eeeeeeee
 
     // copy data without checksum
     bit_lib_copy_bits(protocol->data, 0, 64, protocol->encoded_data, 0);
@@ -244,7 +245,7 @@ LevelDuration protocol_fdx_b_encoder_yield(ProtocolFDXB* protocol) {
 static uint64_t protocol_fdx_b_get_national_code(const uint8_t* data) {
     uint64_t national_code = bit_lib_get_bits_32(data, 0, 32);
     national_code = national_code << 32;
-    national_code |= bit_lib_get_bits_32(data, 32, 6) << (32 - 6);
+    national_code |= (uint64_t)bit_lib_get_bits_32(data, 32, 6) << (32 - 6);
     bit_lib_reverse_bits((uint8_t*)&national_code, 0, 64);
     return national_code;
 }
@@ -323,8 +324,12 @@ void protocol_fdx_b_render_brief_data(ProtocolFDXB* protocol, FuriString* result
 
     float temperature;
     if(protocol_fdx_b_get_temp(protocol->data, &temperature)) {
-        float temperature_c = (temperature - 32) / 1.8;
-        furi_string_cat_printf(result, "T: %.2fC", (double)temperature_c);
+        if(furi_hal_rtc_get_locale_units() == FuriHalRtcLocaleUnitsMetric) {
+            float temperature_c = (temperature - 32.0f) / 1.8f;
+            furi_string_cat_printf(result, "T: %.2fC", (double)temperature_c);
+        } else {
+            furi_string_cat_printf(result, "T: %.2fF", (double)temperature);
+        }
     } else {
         furi_string_cat_printf(result, "T: ---");
     }

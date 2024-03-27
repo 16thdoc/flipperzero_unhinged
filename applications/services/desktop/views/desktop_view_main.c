@@ -13,14 +13,14 @@ struct DesktopMainView {
     View* view;
     DesktopMainViewCallback callback;
     void* context;
-    TimerHandle_t poweroff_timer;
+    FuriTimer* poweroff_timer;
     bool dummy_mode;
 };
 
-#define DESKTOP_MAIN_VIEW_POWEROFF_TIMEOUT 2000
+#define DESKTOP_MAIN_VIEW_POWEROFF_TIMEOUT 1300
 
-static void desktop_main_poweroff_timer_callback(TimerHandle_t timer) {
-    DesktopMainView* main_view = pvTimerGetTimerID(timer);
+static void desktop_main_poweroff_timer_callback(void* context) {
+    DesktopMainView* main_view = context;
     main_view->callback(DesktopMainEventOpenPowerOff, main_view->context);
 }
 
@@ -59,16 +59,18 @@ bool desktop_main_input_callback(InputEvent* event, void* context) {
             } else if(event->key == InputKeyDown) {
                 main_view->callback(DesktopMainEventOpenArchive, main_view->context);
             } else if(event->key == InputKeyLeft) {
-                main_view->callback(DesktopMainEventOpenFavoritePrimary, main_view->context);
+                main_view->callback(DesktopMainEventOpenFavoriteLeftShort, main_view->context);
             }
-            // Right key is handled by animation manager
+            // Right key short is handled by animation manager
         } else if(event->type == InputTypeLong) {
-            if(event->key == InputKeyDown) {
+            if(event->key == InputKeyUp) {
+                main_view->callback(DesktopMainEventLock, main_view->context);
+            } else if(event->key == InputKeyDown) {
                 main_view->callback(DesktopMainEventOpenDebug, main_view->context);
             } else if(event->key == InputKeyLeft) {
-                main_view->callback(DesktopMainEventOpenFavoriteSecondary, main_view->context);
-            } else if(event->key == InputKeyUp) {
-                main_view->callback(DesktopMainEventLock, main_view->context);
+                main_view->callback(DesktopMainEventOpenFavoriteLeftLong, main_view->context);
+            } else if(event->key == InputKeyRight) {
+                main_view->callback(DesktopMainEventOpenFavoriteRightLong, main_view->context);
             } else if(event->key == InputKeyOk) {
                 if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug)) {
                     main_view->callback(DesktopAnimationEventNewIdleAnimation, main_view->context);
@@ -78,62 +80,54 @@ bool desktop_main_input_callback(InputEvent* event, void* context) {
     } else {
         if(event->type == InputTypeShort) {
             if(event->key == InputKeyOk) {
-                main_view->callback(
-                    DesktopMainEventOpenGameMenu, main_view->context); // OPENS Snake
+                main_view->callback(DesktopDummyEventOpenOk, main_view->context);
             } else if(event->key == InputKeyUp) {
                 main_view->callback(DesktopMainEventOpenLockMenu, main_view->context);
             } else if(event->key == InputKeyDown) {
-                main_view->callback(
-                    DesktopMainEventOpenTetris, main_view->context); // OPENS Tetris
+                main_view->callback(DesktopDummyEventOpenDown, main_view->context);
             } else if(event->key == InputKeyLeft) {
-                main_view->callback(
-                    DesktopMainEventOpenArkanoid, main_view->context); // OPENS Arkanoid
+                main_view->callback(DesktopDummyEventOpenLeft, main_view->context);
             }
-            // Right key is handled by animation manager
+            // Right key short is handled by animation manager
         } else if(event->type == InputTypeLong) {
             if(event->key == InputKeyOk) {
-                if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug)) {
-                    main_view->callback(DesktopAnimationEventNewIdleAnimation, main_view->context);
-                }
+                // Not working in DummyMode
+                // if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug)) {
+                //     main_view->callback(DesktopAnimationEventNewIdleAnimation, main_view->context);
+                // }
+                main_view->callback(DesktopDummyEventOpenOkLong, main_view->context);
             } else if(event->key == InputKeyUp) {
-                main_view->callback(DesktopMainEventOpenDOOM, main_view->context); // OPENS DOOM
+                main_view->callback(DesktopDummyEventOpenUpLong, main_view->context);
             } else if(event->key == InputKeyDown) {
-                main_view->callback(
-                    DesktopMainEventOpenZombiez, main_view->context); // OPENS Zombiez
+                main_view->callback(DesktopDummyEventOpenDownLong, main_view->context);
             } else if(event->key == InputKeyLeft) {
-                main_view->callback(
-                    DesktopMainEventOpenHeap, main_view->context); // OPENS Heap Defence
+                main_view->callback(DesktopDummyEventOpenLeftLong, main_view->context);
+            } else if(event->key == InputKeyRight) {
+                main_view->callback(DesktopDummyEventOpenRightLong, main_view->context);
             }
         }
     }
 
     if(event->key == InputKeyBack) {
         if(event->type == InputTypePress) {
-            xTimerChangePeriod(
-                main_view->poweroff_timer,
-                pdMS_TO_TICKS(DESKTOP_MAIN_VIEW_POWEROFF_TIMEOUT),
-                portMAX_DELAY);
+            furi_timer_start(main_view->poweroff_timer, DESKTOP_MAIN_VIEW_POWEROFF_TIMEOUT);
         } else if(event->type == InputTypeRelease) {
-            xTimerStop(main_view->poweroff_timer, portMAX_DELAY);
+            furi_timer_stop(main_view->poweroff_timer);
         }
     }
 
     return true;
 }
 
-DesktopMainView* desktop_main_alloc() {
+DesktopMainView* desktop_main_alloc(void) {
     DesktopMainView* main_view = malloc(sizeof(DesktopMainView));
 
     main_view->view = view_alloc();
     view_set_context(main_view->view, main_view);
     view_set_input_callback(main_view->view, desktop_main_input_callback);
 
-    main_view->poweroff_timer = xTimerCreate(
-        NULL,
-        pdMS_TO_TICKS(DESKTOP_MAIN_VIEW_POWEROFF_TIMEOUT),
-        pdFALSE,
-        main_view,
-        desktop_main_poweroff_timer_callback);
+    main_view->poweroff_timer =
+        furi_timer_alloc(desktop_main_poweroff_timer_callback, FuriTimerTypeOnce, main_view);
 
     return main_view;
 }

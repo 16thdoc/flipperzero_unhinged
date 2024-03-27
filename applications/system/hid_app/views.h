@@ -1,0 +1,18 @@
+typedef enum {
+    HidViewSubmenu,
+    HidViewKeynote,
+    HidViewKeyboard,
+    HidViewNumpad,
+    HidViewMedia,
+    HidViewMusicMacOs,
+    HidViewMovie,
+    HidViewMouse,
+    HidViewMouseClicker,
+    HidViewMouseJiggler,
+    BtHidViewTikTok,
+    HidViewPushToTalk,
+    HidViewPushToTalkMenu,
+    HidViewPushToTalkHelp,
+    HidViewDialog,
+    HidViewPopup,
+} HidView;

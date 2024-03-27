@@ -9,12 +9,12 @@ typedef struct {
     float gauge_voltage;
     float gauge_current;
     float gauge_temperature;
-    float charging_voltage;
+    float charge_voltage_limit;
     uint8_t charge;
     uint8_t health;
 } BatteryInfoModel;
 
-BatteryInfo* battery_info_alloc();
+BatteryInfo* battery_info_alloc(void);
 
 void battery_info_free(BatteryInfo* battery_info);
 

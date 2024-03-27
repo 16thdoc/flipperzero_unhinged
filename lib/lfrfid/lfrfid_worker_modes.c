@@ -1,3 +1,4 @@
+#include "lfrfid/lfrfid_i.h"
 #include <furi.h>
 #include <furi_hal.h>
 #include "lfrfid_worker_i.h"
@@ -5,9 +6,9 @@
 #include <toolbox/pulse_protocols/pulse_glue.h>
 #include <toolbox/buffer_stream.h>
 #include "tools/varint_pair.h"
-#include "tools/bit_lib.h"
+#include <lib/bit_lib/bit_lib.h>
 
-#define TAG "LFRFIDWorker"
+#define TAG "LfRfidWorker"
 
 /**
  * if READ_DEBUG_GPIO is defined:
@@ -45,6 +46,15 @@ void lfrfid_worker_delay(LFRFIDWorker* worker, uint32_t milliseconds) {
     for(uint32_t i = 0; i < (milliseconds / LFRFID_WORKER_DELAY_QUANT); i++) {
         if(lfrfid_worker_check_for_stop(worker)) break;
         furi_delay_ms(LFRFID_WORKER_DELAY_QUANT);
+    }
+}
+
+void t5577_trace(LFRFIDT5577 t5577, const char* message) {
+    if(furi_log_get_level() == FuriLogLevelTrace) {
+        FURI_LOG_T(TAG, "%s", message);
+        for(uint8_t i = 0; i < 8; i++) FURI_LOG_T(TAG, "\nBlock %u %08lX", i, t5577.block[i]);
+        FURI_LOG_T(TAG, "Mask: %u", t5577.mask);
+        FURI_LOG_T(TAG, "Blocks to write: %lu", t5577.blocks_to_write);
     }
 }
 
@@ -100,23 +110,20 @@ static LFRFIDWorkerReadState lfrfid_worker_read_internal(
     uint32_t timeout,
     ProtocolId* result_protocol) {
     LFRFIDWorkerReadState state = LFRFIDWorkerReadTimeout;
-    furi_hal_rfid_pins_read();
 
     if(feature & LFRFIDFeatureASK) {
-        furi_hal_rfid_tim_read(125000, 0.5);
+        furi_hal_rfid_tim_read_start(125000, 0.5);
         FURI_LOG_D(TAG, "Start ASK");
         if(worker->read_cb) {
             worker->read_cb(LFRFIDWorkerReadStartASK, PROTOCOL_NO, worker->cb_ctx);
         }
     } else {
-        furi_hal_rfid_tim_read(62500, 0.25);
+        furi_hal_rfid_tim_read_start(62500, 0.25);
         FURI_LOG_D(TAG, "Start PSK");
         if(worker->read_cb) {
             worker->read_cb(LFRFIDWorkerReadStartPSK, PROTOCOL_NO, worker->cb_ctx);
         }
     }
-
-    furi_hal_rfid_tim_read_start();
 
     // stabilize detector
     lfrfid_worker_delay(worker, LFRFID_WORKER_READ_STABILIZE_TIME_MS);
@@ -205,7 +212,7 @@ static LFRFIDWorkerReadState lfrfid_worker_read_internal(
                     average_index = 0;
 
                     if(worker->read_cb) {
-                        if(average > 0.2 && average < 0.8) {
+                        if(average > 0.2f && average < 0.8f) {
                             if(!card_detected) {
                                 card_detected = true;
                                 worker->read_cb(
@@ -577,6 +584,99 @@ static void lfrfid_worker_mode_write_process(LFRFIDWorker* worker) {
     free(read_data);
 }
 
+static void lfrfid_worker_mode_write_and_set_pass_process(LFRFIDWorker* worker) {
+    LFRFIDProtocol protocol = worker->protocol;
+    LFRFIDWriteRequest* request = malloc(sizeof(LFRFIDWriteRequest));
+    request->write_type = LFRFIDWriteTypeT5577;
+
+    bool can_be_written = protocol_dict_get_write_data(worker->protocols, protocol, request);
+
+    uint32_t write_start_time = furi_get_tick();
+    bool too_long = false;
+    size_t unsuccessful_reads = 0;
+
+    size_t data_size = protocol_dict_get_data_size(worker->protocols, protocol);
+    uint8_t* verify_data = malloc(data_size);
+    uint8_t* read_data = malloc(data_size);
+    protocol_dict_get_data(worker->protocols, protocol, verify_data, data_size);
+
+    if(can_be_written) {
+        while(!lfrfid_worker_check_for_stop(worker)) {
+            FURI_LOG_D(TAG, "Data write with pass");
+
+            LfRfid* app = worker->cb_ctx;
+            uint32_t pass = bit_lib_bytes_to_num_be(app->password, 4);
+
+            request->t5577.mask = 0b10000001;
+            for(uint8_t i = 0; i < request->t5577.blocks_to_write; i++)
+                request->t5577.mask |= (1 << i);
+
+            request->t5577.block[0] |= (1 << 4);
+            request->t5577.block[7] = pass;
+
+            t5577_trace(request->t5577, "Write with password");
+
+            t5577_write_with_mask(&request->t5577, 0, true, 0);
+
+            ProtocolId read_result = PROTOCOL_NO;
+            LFRFIDWorkerReadState state = lfrfid_worker_read_internal(
+                worker,
+                protocol_dict_get_features(worker->protocols, protocol),
+                LFRFID_WORKER_WRITE_VERIFY_TIME_MS,
+                &read_result);
+
+            if(state == LFRFIDWorkerReadOK) {
+                bool read_success = false;
+
+                if(read_result == protocol) {
+                    protocol_dict_get_data(worker->protocols, protocol, read_data, data_size);
+
+                    if(memcmp(read_data, verify_data, data_size) == 0) {
+                        read_success = true;
+                    }
+                }
+
+                if(read_success) {
+                    FURI_LOG_D(TAG, "Write with password %08lX success", pass);
+
+                    if(worker->write_cb) {
+                        worker->write_cb(LFRFIDWorkerWriteOK, worker->cb_ctx);
+                    }
+                    break;
+                } else {
+                    unsuccessful_reads++;
+
+                    if(unsuccessful_reads == LFRFID_WORKER_WRITE_MAX_UNSUCCESSFUL_READS) {
+                        if(worker->write_cb) {
+                            worker->write_cb(LFRFIDWorkerWriteFobCannotBeWritten, worker->cb_ctx);
+                        }
+                    }
+                }
+            } else if(state == LFRFIDWorkerReadExit) {
+                break;
+            }
+
+            if(!too_long &&
+               (furi_get_tick() - write_start_time) > LFRFID_WORKER_WRITE_TOO_LONG_TIME_MS) {
+                too_long = true;
+                if(worker->write_cb) {
+                    worker->write_cb(LFRFIDWorkerWriteTooLongToWrite, worker->cb_ctx);
+                }
+            }
+
+            lfrfid_worker_delay(worker, LFRFID_WORKER_WRITE_DROP_TIME_MS);
+        }
+    } else {
+        if(worker->write_cb) {
+            worker->write_cb(LFRFIDWorkerWriteProtocolCannotBeWritten, worker->cb_ctx);
+        }
+    }
+
+    free(request);
+    free(verify_data);
+    free(read_data);
+}
+
 /**************************************************************************************************/
 /******************************************* READ RAW *********************************************/
 /**************************************************************************************************/
@@ -632,6 +732,7 @@ const LFRFIDWorkerModeType lfrfid_worker_modes[] = {
     [LFRFIDWorkerIdle] = {.process = NULL},
     [LFRFIDWorkerRead] = {.process = lfrfid_worker_mode_read_process},
     [LFRFIDWorkerWrite] = {.process = lfrfid_worker_mode_write_process},
+    [LFRFIDWorkerWriteAndSetPass] = {.process = lfrfid_worker_mode_write_and_set_pass_process},
     [LFRFIDWorkerEmulate] = {.process = lfrfid_worker_mode_emulate_process},
     [LFRFIDWorkerReadRaw] = {.process = lfrfid_worker_mode_read_raw_process},
     [LFRFIDWorkerEmulateRaw] = {.process = lfrfid_worker_mode_emulate_raw_process},

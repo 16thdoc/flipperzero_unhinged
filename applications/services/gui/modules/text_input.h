@@ -23,7 +23,7 @@ typedef bool (*TextInputValidatorCallback)(const char* text, FuriString* error, 
  *
  * @return     TextInput instance
  */
-TextInput* text_input_alloc();
+TextInput* text_input_alloc(void);
 
 /** Deinitialize and free text input
  *
@@ -69,6 +69,8 @@ void text_input_set_validator(
     TextInput* text_input,
     TextInputValidatorCallback callback,
     void* callback_context);
+
+void text_input_set_minimum_length(TextInput* text_input, size_t minimum_length);
 
 TextInputValidatorCallback text_input_get_validator_callback(TextInput* text_input);
 

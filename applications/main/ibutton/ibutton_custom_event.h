@@ -1,16 +1,21 @@
 #pragma once
 
-enum iButtonCustomEvent {
+typedef enum {
     // Reserve first 100 events for button types and indexes, starting from 0
     iButtonCustomEventReserved = 100,
 
     iButtonCustomEventBack,
     iButtonCustomEventTextEditResult,
+    iButtonCustomEventByteEditChanged,
     iButtonCustomEventByteEditResult,
     iButtonCustomEventWorkerEmulated,
     iButtonCustomEventWorkerRead,
+    iButtonCustomEventWorkerWriteOK,
+    iButtonCustomEventWorkerWriteSameKey,
+    iButtonCustomEventWorkerWriteNoDetect,
+    iButtonCustomEventWorkerWriteCannotWrite,
 
-    iButtonCustomEventRpcLoad,
+    iButtonCustomEventRpcLoadFile,
     iButtonCustomEventRpcExit,
     iButtonCustomEventRpcSessionClose,
-};
+} iButtonCustomEvent;

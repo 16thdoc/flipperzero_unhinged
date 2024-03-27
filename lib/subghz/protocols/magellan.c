@@ -64,7 +64,8 @@ const SubGhzProtocol subghz_protocol_magellan = {
     .name = SUBGHZ_PROTOCOL_MAGELLAN_NAME,
     .type = SubGhzProtocolTypeStatic,
     .flag = SubGhzProtocolFlag_433 | SubGhzProtocolFlag_AM | SubGhzProtocolFlag_Decodable |
-            SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send,
+            SubGhzProtocolFlag_Load | SubGhzProtocolFlag_Save | SubGhzProtocolFlag_Send |
+            SubGhzProtocolFlag_Magellan,
 
     .decoder = &subghz_protocol_magellan_decoder,
     .encoder = &subghz_protocol_magellan_encoder,
@@ -150,31 +151,31 @@ static bool subghz_protocol_encoder_magellan_get_upload(SubGhzProtocolEncoderMag
     return true;
 }
 
-bool subghz_protocol_encoder_magellan_deserialize(void* context, FlipperFormat* flipper_format) {
+SubGhzProtocolStatus
+    subghz_protocol_encoder_magellan_deserialize(void* context, FlipperFormat* flipper_format) {
     furi_assert(context);
     SubGhzProtocolEncoderMagellan* instance = context;
-    bool res = false;
+    SubGhzProtocolStatus ret = SubGhzProtocolStatusError;
     do {
-        if(!subghz_block_generic_deserialize(&instance->generic, flipper_format)) {
-            FURI_LOG_E(TAG, "Deserialize error");
-            break;
-        }
-        if(instance->generic.data_count_bit !=
-           subghz_protocol_magellan_const.min_count_bit_for_found) {
-            FURI_LOG_E(TAG, "Wrong number of bits in key");
+        ret = subghz_block_generic_deserialize_check_count_bit(
+            &instance->generic,
+            flipper_format,
+            subghz_protocol_magellan_const.min_count_bit_for_found);
+        if(ret != SubGhzProtocolStatusOk) {
             break;
         }
         //optional parameter parameter
         flipper_format_read_uint32(
             flipper_format, "Repeat", (uint32_t*)&instance->encoder.repeat, 1);
 
-        if(!subghz_protocol_encoder_magellan_get_upload(instance)) break;
+        if(!subghz_protocol_encoder_magellan_get_upload(instance)) {
+            ret = SubGhzProtocolStatusErrorEncoderGetUpload;
+            break;
+        }
         instance->encoder.is_running = true;
-
-        res = true;
     } while(false);
 
-    return res;
+    return ret;
 }
 
 void subghz_protocol_encoder_magellan_stop(void* context) {
@@ -359,15 +360,38 @@ static void subghz_protocol_magellan_check_remote_controller(SubGhzBlockGeneric*
 *
 *   0x1275EC =>  0x12-event codes, 0x75EC-serial (dec 117236)
 *
-*   event codes
-*   bit_0: 1-Open/Motion, 0-close/ok
-*   bit_1: 1-Tamper On (alarm), 0-Tamper Off (ok)
-*   bit_2: ?
-*   bit_3: 1-power on
-*   bit_4: model type - wireless reed
-*   bit_5: model type - motion sensor
-*   bit_6: ?
-*   bit_7: ?
+* Event codes consist of two parts:
+* - The upper nibble (bits 7-4) represents the event type:
+*     - 0x00: Nothing
+*     - 0x01: Door
+*     - 0x02: Motion
+*     - 0x03: Smoke Alarm
+*     - 0x04: REM1
+*     - 0x05: REM1 with subtype Off1
+*     - 0x06: REM2
+*     - 0x07: REM2 with subtype Off1
+*     - Others: Unknown
+* - The lower nibble (bits 3-0) represents the event subtype, which varies based on the model type:
+*     - If the model type is greater than 0x03 (e.g., REM1 or REM2):
+*         - 0x00: Arm1
+*         - 0x01: Btn1
+*         - 0x02: Btn2
+*         - 0x03: Btn3
+*         - 0x08: Reset
+*         - 0x09: LowBatt
+*         - 0x0A: BattOk
+*         - 0x0B: Learn
+*         - Others: Unknown
+*     - Otherwise:
+*         - 0x00: Sealed
+*         - 0x01: Alarm
+*         - 0x02: Tamper
+*         - 0x03: Alarm + Tamper
+*         - 0x08: Reset
+*         - 0x09: LowBatt
+*         - 0x0A: BattOk
+*         - 0x0B: Learn
+*         - Others: Unknown
 *
 */
     uint64_t data_rev = subghz_protocol_blocks_reverse_key(instance->data >> 8, 24);
@@ -376,18 +400,71 @@ static void subghz_protocol_magellan_check_remote_controller(SubGhzBlockGeneric*
 }
 
 static void subghz_protocol_magellan_get_event_serialize(uint8_t event, FuriString* output) {
-    furi_string_cat_printf(
-        output,
-        "%s%s%s%s%s%s%s%s",
-        ((event >> 4) & 0x1 ? (event & 0x1 ? " Open" : " Close") :
-                              (event & 0x1 ? " Motion" : " Ok")),
-        ((event >> 1) & 0x1 ? ", Tamper On\n(Alarm)" : ""),
-        ((event >> 2) & 0x1 ? ", ?" : ""),
-        ((event >> 3) & 0x1 ? ", Power On" : ""),
-        ((event >> 4) & 0x1 ? ", MT:Wireless_Reed" : ""),
-        ((event >> 5) & 0x1 ? ", MT:Motion_\nSensor" : ""),
-        ((event >> 6) & 0x1 ? ", ?" : ""),
-        ((event >> 7) & 0x1 ? ", ?" : ""));
+    const char* event_type;
+    const char* event_subtype;
+
+    switch((event >> 4) & 0x0F) {
+    case 0x00:
+        event_type = "Nothing";
+        break;
+    case 0x01:
+        event_type = "Door";
+        break;
+    case 0x02:
+        event_type = "Motion";
+        break;
+    case 0x03:
+        event_type = "Smoke Alarm";
+        break;
+    case 0x04:
+        event_type = "REM1";
+        break;
+    case 0x05:
+        event_type = "REM1";
+        event_subtype = "Off1";
+        furi_string_cat_printf(output, "%s - %s", event_type, event_subtype);
+        return;
+    case 0x06:
+        event_type = "REM2";
+        event_subtype = "Off1";
+        furi_string_cat_printf(output, "%s - %s", event_type, event_subtype);
+        return;
+    default:
+        event_type = "Unknown";
+        break;
+    }
+
+    switch(event & 0x0F) {
+    case 0x00:
+        event_subtype = (((event >> 4) & 0x0F) > 0x03) ? "Arm1" : "Sealed";
+        break;
+    case 0x01:
+        event_subtype = (((event >> 4) & 0x0F) > 0x03) ? "Btn1" : "Alarm";
+        break;
+    case 0x02:
+        event_subtype = (((event >> 4) & 0x0F) > 0x03) ? "Btn2" : "Tamper";
+        break;
+    case 0x03:
+        event_subtype = (((event >> 4) & 0x0F) > 0x03) ? "Btn3" : "Alarm + Tamper";
+        break;
+    case 0x08:
+        event_subtype = "Reset";
+        break;
+    case 0x09:
+        event_subtype = "LowBatt";
+        break;
+    case 0x0A:
+        event_subtype = "BattOk";
+        break;
+    case 0x0B:
+        event_subtype = "Learn";
+        break;
+    default:
+        event_subtype = "Unknown";
+        break;
+    }
+
+    furi_string_cat_printf(output, "%s - %s", event_type, event_subtype);
 }
 
 uint8_t subghz_protocol_decoder_magellan_get_hash_data(void* context) {
@@ -397,7 +474,7 @@ uint8_t subghz_protocol_decoder_magellan_get_hash_data(void* context) {
         &instance->decoder, (instance->decoder.decode_count_bit / 8) + 1);
 }
 
-bool subghz_protocol_decoder_magellan_serialize(
+SubGhzProtocolStatus subghz_protocol_decoder_magellan_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
@@ -406,22 +483,14 @@ bool subghz_protocol_decoder_magellan_serialize(
     return subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
 }
 
-bool subghz_protocol_decoder_magellan_deserialize(void* context, FlipperFormat* flipper_format) {
+SubGhzProtocolStatus
+    subghz_protocol_decoder_magellan_deserialize(void* context, FlipperFormat* flipper_format) {
     furi_assert(context);
     SubGhzProtocolDecoderMagellan* instance = context;
-    bool ret = false;
-    do {
-        if(!subghz_block_generic_deserialize(&instance->generic, flipper_format)) {
-            break;
-        }
-        if(instance->generic.data_count_bit !=
-           subghz_protocol_magellan_const.min_count_bit_for_found) {
-            FURI_LOG_E(TAG, "Wrong number of bits in key");
-            break;
-        }
-        ret = true;
-    } while(false);
-    return ret;
+    return subghz_block_generic_deserialize_check_count_bit(
+        &instance->generic,
+        flipper_format,
+        subghz_protocol_magellan_const.min_count_bit_for_found);
 }
 
 void subghz_protocol_decoder_magellan_get_string(void* context, FuriString* output) {

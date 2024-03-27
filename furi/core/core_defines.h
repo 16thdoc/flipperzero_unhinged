@@ -24,6 +24,10 @@ extern "C" {
     })
 #endif
 
+#ifndef ABS
+#define ABS(a) ({ (a) < 0 ? -(a) : (a); })
+#endif
+
 #ifndef ROUND_UP_TO
 #define ROUND_UP_TO(a, b)       \
     ({                          \
@@ -74,10 +78,15 @@ extern "C" {
 #define TOSTRING(x) STRINGIFY(x)
 #endif
 
+#ifndef CONCATENATE
+#define CONCATENATE(a, b) CONCATENATE_(a, b)
+#define CONCATENATE_(a, b) a##b
+#endif
+
 #ifndef REVERSE_BYTES_U32
-#define REVERSE_BYTES_U32(x)                                                        \
-    ((((x)&0x000000FF) << 24) | (((x)&0x0000FF00) << 8) | (((x)&0x00FF0000) >> 8) | \
-     (((x)&0xFF000000) >> 24))
+#define REVERSE_BYTES_U32(x)                                                              \
+    ((((x) & 0x000000FF) << 24) | (((x) & 0x0000FF00) << 8) | (((x) & 0x00FF0000) >> 8) | \
+     (((x) & 0xFF000000) >> 24))
 #endif
 
 #ifndef FURI_BIT
@@ -93,7 +102,11 @@ extern "C" {
 #endif
 
 #ifndef FURI_BIT_CLEAR
-#define FURI_BIT_CLEAR(x, n) ((x) &= ~(1UL << (n)))
+#define FURI_BIT_CLEAR(x, n)    \
+    ({                          \
+        __typeof__(x) _x = (1); \
+        (x) &= ~(_x << (n));    \
+    })
 #endif
 
 #define FURI_SW_MEMBARRIER() asm volatile("" : : : "memory")

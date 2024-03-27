@@ -2,7 +2,6 @@
 #include <furi.h>
 #include <rpc/rpc.h>
 #include <furi_hal.h>
-#include <semphr.h>
 
 #define TAG "RpcCli"
 
@@ -47,7 +46,7 @@ void rpc_cli_command_start_session(Cli* cli, FuriString* args, void* context) {
     FURI_LOG_D(TAG, "Free memory %lu", mem_before);
 
     furi_hal_usb_lock();
-    RpcSession* rpc_session = rpc_session_open(rpc);
+    RpcSession* rpc_session = rpc_session_open(rpc, RpcOwnerUsb);
     if(rpc_session == NULL) {
         printf("Session start error\r\n");
         furi_hal_usb_unlock();

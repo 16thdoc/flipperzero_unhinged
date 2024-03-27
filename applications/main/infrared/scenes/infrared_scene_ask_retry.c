@@ -1,17 +1,17 @@
-#include "../infrared_i.h"
+#include "../infrared_app_i.h"
 
 static void infrared_scene_dialog_result_callback(DialogExResult result, void* context) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     view_dispatcher_send_custom_event(infrared->view_dispatcher, result);
 }
 
 void infrared_scene_ask_retry_on_enter(void* context) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     DialogEx* dialog_ex = infrared->dialog_ex;
 
-    dialog_ex_set_header(dialog_ex, "Return to Reading?", 64, 0, AlignCenter, AlignTop);
+    dialog_ex_set_header(dialog_ex, "Retry Reading?", 64, 11, AlignCenter, AlignTop);
     dialog_ex_set_text(
-        dialog_ex, "All unsaved data\nwill be lost!", 64, 31, AlignCenter, AlignCenter);
+        dialog_ex, "All unsaved data\nwill be lost!", 64, 25, AlignCenter, AlignTop);
     dialog_ex_set_icon(dialog_ex, 0, 0, NULL);
     dialog_ex_set_left_button_text(dialog_ex, "Exit");
     dialog_ex_set_center_button_text(dialog_ex, NULL);
@@ -23,7 +23,7 @@ void infrared_scene_ask_retry_on_enter(void* context) {
 }
 
 bool infrared_scene_ask_retry_on_event(void* context, SceneManagerEvent event) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     SceneManager* scene_manager = infrared->scene_manager;
     bool consumed = false;
 
@@ -43,6 +43,6 @@ bool infrared_scene_ask_retry_on_event(void* context, SceneManagerEvent event) {
 }
 
 void infrared_scene_ask_retry_on_exit(void* context) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     dialog_ex_reset(infrared->dialog_ex);
 }

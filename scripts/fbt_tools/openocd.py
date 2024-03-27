@@ -1,10 +1,11 @@
-from SCons.Builder import Builder
-from SCons.Action import Action
-from SCons.Defaults import Touch
 import SCons
+from SCons.Action import Action
+from SCons.Builder import Builder
+from SCons.Defaults import Touch
 
 __OPENOCD_BIN = "openocd"
 
+# TODO: FL-3663: rework argument passing to lists
 _oocd_action = Action(
     "${OPENOCD} ${OPENOCD_OPTS} ${OPENOCD_COMMAND}",
     "${OPENOCDCOMSTR}",

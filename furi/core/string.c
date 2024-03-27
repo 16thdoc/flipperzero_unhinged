@@ -22,7 +22,7 @@ struct FuriString {
 #undef furi_string_trim
 #undef furi_string_cat
 
-FuriString* furi_string_alloc() {
+FuriString* furi_string_alloc(void) {
     FuriString* string = malloc(sizeof(FuriString));
     string_init(string->string);
     return string;
@@ -71,7 +71,8 @@ void furi_string_reserve(FuriString* s, size_t alloc) {
 }
 
 void furi_string_reset(FuriString* s) {
-    string_reset(s->string);
+    string_clear(s->string);
+    string_init(s->string);
 }
 
 void furi_string_swap(FuriString* v1, FuriString* v2) {
@@ -296,7 +297,9 @@ static FuriStringUTF8State state_to_furi_state(m_str1ng_utf8_state_e state) {
 }
 
 void furi_string_utf8_decode(char c, FuriStringUTF8State* state, FuriStringUnicodeValue* unicode) {
+    string_unicode_t m_u = *unicode;
     m_str1ng_utf8_state_e m_state = furi_state_to_state(*state);
-    m_str1ng_utf8_decode(c, &m_state, unicode);
+    m_str1ng_utf8_decode(c, &m_state, &m_u);
     *state = state_to_furi_state(m_state);
+    *unicode = m_u;
 }

@@ -3,7 +3,7 @@
 #include <lfrfid/tools/fsk_demod.h>
 #include <lfrfid/tools/fsk_osc.h>
 #include "lfrfid_protocols.h"
-#include <lfrfid/tools/bit_lib.h>
+#include <bit_lib/bit_lib.h>
 
 #define JITTER_TIME (20)
 #define MIN_TIME (64 - JITTER_TIME)
@@ -88,7 +88,7 @@ static bool protocol_pyramid_can_be_decoded(uint8_t* data) {
     }
     uint8_t fmt_len = 105 - j;
 
-    // Only suppport 26bit format for now
+    // Only support 26bit format for now
     if(fmt_len != 26) return false;
 
     return true;

@@ -1,10 +1,11 @@
 #include "storage_move_to_sd.h"
+
 #include <core/common_defines.h>
 #include <core/log.h>
-#include "loader/loader.h"
-#include <stdint.h>
+#include <loader/loader.h>
 #include <toolbox/dir_walk.h>
 #include <toolbox/path.h>
+#include <furi_hal.h>
 
 #define TAG "MoveToSd"
 
@@ -13,11 +14,22 @@
 
 static bool storage_move_to_sd_check_entry(const char* name, FileInfo* fileinfo, void* ctx) {
     UNUSED(ctx);
-    if((fileinfo->flags & FSF_DIRECTORY) != 0) {
+    if(file_info_is_dir(fileinfo)) {
         return true;
     }
 
     return (name && (*name != '.'));
+}
+
+static void storage_move_to_sd_remove_region() {
+    if(furi_hal_rtc_get_boot_mode() != FuriHalRtcBootModeNormal) return;
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+
+    if(storage_common_exists(storage, INT_PATH(".region_data"))) {
+        storage_common_remove(storage, INT_PATH(".region_data"));
+    }
+
+    furi_record_close(RECORD_STORAGE);
 }
 
 bool storage_move_to_sd_perform(void) {
@@ -101,7 +113,7 @@ static void storage_move_to_sd_unmount_callback(const void* message, void* conte
     }
 }
 
-static StorageMoveToSd* storage_move_to_sd_alloc() {
+static StorageMoveToSd* storage_move_to_sd_alloc(void) {
     StorageMoveToSd* app = malloc(sizeof(StorageMoveToSd));
 
     app->gui = furi_record_open(RECORD_GUI);
@@ -162,6 +174,9 @@ int32_t storage_move_to_sd_app(void* p) {
         FURI_LOG_I(TAG, "Nothing to move");
     }
 
+    // Remove unused region file from int memory
+    storage_move_to_sd_remove_region();
+
     return 0;
 }
 
@@ -172,7 +187,7 @@ static void storage_move_to_sd_mount_callback(const void* message, void* context
 
     if(storage_event->type == StorageEventTypeCardMount) {
         Loader* loader = furi_record_open(RECORD_LOADER);
-        loader_start(loader, "StorageMoveToSd", NULL);
+        loader_start(loader, "StorageMoveToSd", NULL, NULL);
         furi_record_close(RECORD_LOADER);
     }
 }

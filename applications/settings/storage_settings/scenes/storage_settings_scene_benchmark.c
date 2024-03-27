@@ -44,7 +44,7 @@ static bool storage_settings_scene_bench_write(
 }
 
 static bool
-    storage_settings_scene_bench_read(Storage* api, uint16_t size, uint8_t* data, uint32_t* speed) {
+    storage_settings_scene_bench_read(Storage* api, size_t size, uint8_t* data, uint32_t* speed) {
     File* file = storage_file_alloc(api);
     bool result = true;
     *speed = -1;
@@ -82,7 +82,7 @@ static void storage_settings_scene_benchmark(StorageSettings* app) {
         bench_data[i] = (uint8_t)i;
     }
 
-    uint16_t bench_size[BENCH_COUNT] = {1, 8, 32, 256, 512, 1024};
+    size_t bench_size[BENCH_COUNT] = {1, 8, 32, 256, 512, 1024};
     uint32_t bench_w_speed[BENCH_COUNT] = {0, 0, 0, 0, 0, 0};
     uint32_t bench_r_speed[BENCH_COUNT] = {0, 0, 0, 0, 0, 0};
 
@@ -103,6 +103,9 @@ static void storage_settings_scene_benchmark(StorageSettings* app) {
             break;
 
         furi_string_cat_printf(app->text_string, "R %luK", bench_r_speed[i]);
+
+        storage_common_remove(app->fs_api, BENCH_FILE);
+
         dialog_ex_set_text(
             dialog_ex, furi_string_get_cstr(app->text_string), 0, 32, AlignLeft, AlignCenter);
     }
@@ -122,7 +125,7 @@ void storage_settings_scene_benchmark_on_enter(void* context) {
     view_dispatcher_switch_to_view(app->view_dispatcher, StorageSettingsViewDialogEx);
 
     if(sd_status != FSE_OK) {
-        dialog_ex_set_icon(dialog_ex, 72, 17, &I_DolphinCommon_56x48);
+        dialog_ex_set_icon(dialog_ex, 83, 22, &I_WarningDolphinFlip_45x42);
         dialog_ex_set_header(dialog_ex, "SD Card Not Mounted", 64, 3, AlignCenter, AlignTop);
         dialog_ex_set_text(
             dialog_ex, "Try to reinsert\nor format SD\ncard.", 3, 19, AlignLeft, AlignTop);

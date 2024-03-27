@@ -1,10 +1,10 @@
 #include "infrared_debug_view.h"
 
-#include <stdlib.h>
-#include <string.h>
-
 #include <gui/canvas.h>
 #include <gui/elements.h>
+
+#include <stdlib.h>
+#include <string.h>
 
 #define INFRARED_DEBUG_TEXT_LENGTH 64
 
@@ -30,7 +30,7 @@ static void infrared_debug_view_draw_callback(Canvas* canvas, void* model) {
     }
 }
 
-InfraredDebugView* infrared_debug_view_alloc() {
+InfraredDebugView* infrared_debug_view_alloc(void) {
     InfraredDebugView* debug_view = malloc(sizeof(InfraredDebugView));
     debug_view->view = view_alloc();
     view_allocate_model(debug_view->view, ViewModelTypeLocking, sizeof(InfraredDebugViewModel));

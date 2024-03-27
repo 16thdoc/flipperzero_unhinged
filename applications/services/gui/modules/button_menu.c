@@ -1,11 +1,14 @@
 #include "button_menu.h"
-#include "gui/canvas.h"
-#include "gui/elements.h"
-#include "input/input.h"
-#include <m-array.h>
+
+#include <gui/canvas.h>
+#include <gui/elements.h>
+#include <input/input.h>
+
 #include <furi.h>
-#include <stdint.h>
 #include <assets_icons.h>
+
+#include <stdint.h>
+#include <m-array.h>
 
 #define ITEM_FIRST_OFFSET 17
 #define ITEM_NEXT_OFFSET 4
@@ -178,6 +181,47 @@ static void button_menu_process_down(ButtonMenu* button_menu) {
         true);
 }
 
+static void button_menu_process_right(ButtonMenu* button_menu) {
+    furi_assert(button_menu);
+
+    with_view_model(
+        button_menu->view,
+        ButtonMenuModel * model,
+        {
+            if(ButtonMenuItemArray_size(model->items) > BUTTONS_PER_SCREEN) {
+                size_t position_candidate = model->position + BUTTONS_PER_SCREEN;
+                position_candidate -= position_candidate % BUTTONS_PER_SCREEN;
+                if(position_candidate < (ButtonMenuItemArray_size(model->items))) {
+                    model->position = position_candidate;
+                } else {
+                    model->position = 0;
+                }
+            }
+        },
+        true);
+}
+
+static void button_menu_process_left(ButtonMenu* button_menu) {
+    furi_assert(button_menu);
+
+    with_view_model(
+        button_menu->view,
+        ButtonMenuModel * model,
+        {
+            if(ButtonMenuItemArray_size(model->items) > BUTTONS_PER_SCREEN) {
+                size_t position_candidate;
+                if(model->position < BUTTONS_PER_SCREEN) {
+                    position_candidate = (ButtonMenuItemArray_size(model->items) - 1);
+                } else {
+                    position_candidate = model->position - BUTTONS_PER_SCREEN;
+                };
+                position_candidate -= position_candidate % BUTTONS_PER_SCREEN;
+                model->position = position_candidate;
+            }
+        },
+        true);
+}
+
 static void button_menu_process_ok(ButtonMenu* button_menu, InputType type) {
     furi_assert(button_menu);
 
@@ -239,6 +283,14 @@ static bool button_menu_view_input_callback(InputEvent* event, void* context) {
             consumed = true;
             button_menu_process_down(button_menu);
             break;
+        case InputKeyRight:
+            consumed = true;
+            button_menu_process_right(button_menu);
+            break;
+        case InputKeyLeft:
+            consumed = true;
+            button_menu_process_left(button_menu);
+            break;
         default:
             break;
         }
@@ -248,12 +300,12 @@ static bool button_menu_view_input_callback(InputEvent* event, void* context) {
 }
 
 View* button_menu_get_view(ButtonMenu* button_menu) {
-    furi_assert(button_menu);
+    furi_check(button_menu);
     return button_menu->view;
 }
 
 void button_menu_reset(ButtonMenu* button_menu) {
-    furi_assert(button_menu);
+    furi_check(button_menu);
 
     with_view_model(
         button_menu->view,
@@ -267,7 +319,7 @@ void button_menu_reset(ButtonMenu* button_menu) {
 }
 
 void button_menu_set_header(ButtonMenu* button_menu, const char* header) {
-    furi_assert(button_menu);
+    furi_check(button_menu);
 
     with_view_model(
         button_menu->view, ButtonMenuModel * model, { model->header = header; }, true);
@@ -281,8 +333,8 @@ ButtonMenuItem* button_menu_add_item(
     ButtonMenuItemType type,
     void* callback_context) {
     ButtonMenuItem* item = NULL;
-    furi_assert(label);
-    furi_assert(button_menu);
+    furi_check(label);
+    furi_check(button_menu);
 
     with_view_model(
         button_menu->view,
@@ -324,7 +376,7 @@ ButtonMenu* button_menu_alloc(void) {
 }
 
 void button_menu_free(ButtonMenu* button_menu) {
-    furi_assert(button_menu);
+    furi_check(button_menu);
 
     with_view_model(
         button_menu->view,
@@ -336,7 +388,7 @@ void button_menu_free(ButtonMenu* button_menu) {
 }
 
 void button_menu_set_selected_item(ButtonMenu* button_menu, uint32_t index) {
-    furi_assert(button_menu);
+    furi_check(button_menu);
 
     with_view_model(
         button_menu->view,

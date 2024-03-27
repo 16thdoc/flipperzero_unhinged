@@ -139,7 +139,7 @@ static bool write_file_13DA(Storage* storage, const char* path) {
     File* file = storage_file_alloc(storage);
     bool result = false;
     if(storage_file_open(file, path, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
-        result = storage_file_write(file, "13DA", 4) == 4;
+        result = (storage_file_write(file, "13DA", 4) == 4);
     }
     storage_file_close(file);
     storage_file_free(file);
@@ -179,7 +179,7 @@ MU_TEST_1(test_dirwalk_full, Storage* storage) {
 
     while(dir_walk_read(dir_walk, path, &fileinfo) == DirWalkOK) {
         furi_string_right(path, strlen(EXT_PATH("dirwalk/")));
-        mu_check(storage_test_paths_mark(paths, path, (fileinfo.flags & FSF_DIRECTORY)));
+        mu_check(storage_test_paths_mark(paths, path, file_info_is_dir(&fileinfo)));
     }
 
     dir_walk_free(dir_walk);
@@ -204,7 +204,7 @@ MU_TEST_1(test_dirwalk_no_recursive, Storage* storage) {
 
     while(dir_walk_read(dir_walk, path, &fileinfo) == DirWalkOK) {
         furi_string_right(path, strlen(EXT_PATH("dirwalk/")));
-        mu_check(storage_test_paths_mark(paths, path, (fileinfo.flags & FSF_DIRECTORY)));
+        mu_check(storage_test_paths_mark(paths, path, file_info_is_dir(&fileinfo)));
     }
 
     dir_walk_free(dir_walk);
@@ -219,7 +219,7 @@ static bool test_dirwalk_filter_no_folder_ext(const char* name, FileInfo* filein
     UNUSED(ctx);
 
     // only files
-    if(!(fileinfo->flags & FSF_DIRECTORY)) {
+    if(!file_info_is_dir(fileinfo)) {
         // with ".test" in name
         if(strstr(name, ".test") != NULL) {
             return true;
@@ -243,7 +243,7 @@ MU_TEST_1(test_dirwalk_filter, Storage* storage) {
 
     while(dir_walk_read(dir_walk, path, &fileinfo) == DirWalkOK) {
         furi_string_right(path, strlen(EXT_PATH("dirwalk/")));
-        mu_check(storage_test_paths_mark(paths, path, (fileinfo.flags & FSF_DIRECTORY)));
+        mu_check(storage_test_paths_mark(paths, path, file_info_is_dir(&fileinfo)));
     }
 
     dir_walk_free(dir_walk);
@@ -266,7 +266,7 @@ MU_TEST_SUITE(test_dirwalk_suite) {
     furi_record_close(RECORD_STORAGE);
 }
 
-int run_minunit_test_dirwalk() {
+int run_minunit_test_dirwalk(void) {
     MU_RUN_SUITE(test_dirwalk_suite);
     return MU_EXIT_CODE;
 }

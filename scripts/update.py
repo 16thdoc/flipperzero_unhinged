@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
-from flipper.app import App
-from flipper.utils.fff import FlipperFormatFile
-from flipper.assets.coprobin import CoproBinary, get_stack_type
-from flipper.assets.obdata import OptionBytesData, ObReferenceValues
-from os.path import basename, join, exists
+import math
 import os
 import shutil
-import zlib
 import tarfile
-import math
+import zlib
+from os.path import exists, join
 
+from flipper.app import App
+from flipper.assets.coprobin import CoproBinary, get_stack_type
+from flipper.assets.obdata import ObReferenceValues, OptionBytesData
+from flipper.utils.fff import FlipperFormatFile
 from slideshow import Main as SlideshowMain
 
 
@@ -73,6 +73,9 @@ class Main(App):
         self.parser_generate.add_argument(
             "--I-understand-what-I-am-doing", dest="disclaimer", required=False
         )
+        self.parser_generate.add_argument(
+            "--stackversion", dest="stack_version", required=False, default=""
+        )
 
         self.parser_generate.set_defaults(func=self.generate)
 
@@ -93,6 +96,13 @@ class Main(App):
             if not self.args.radiotype:
                 raise ValueError("Missing --radiotype")
             radio_meta = CoproBinary(self.args.radiobin)
+            if self.args.stack_version:
+                actual_stack_version_str = f"{radio_meta.img_sig.version_major}.{radio_meta.img_sig.version_minor}.{radio_meta.img_sig.version_sub}"
+                if actual_stack_version_str != self.args.stack_version:
+                    self.logger.error(
+                        f"Stack version mismatch: expected {self.args.stack_version}, actual {actual_stack_version_str}"
+                    )
+                    return 1
             radio_version = self.copro_version_as_int(radio_meta, self.args.radiotype)
             if (
                 get_stack_type(self.args.radiotype) not in self.WHITELISTED_STACK_TYPES
@@ -199,7 +209,7 @@ class Main(App):
 
     def disclaimer(self):
         self.logger.error(
-            "You might brick you device into a state in which you'd need an SWD programmer to fix it."
+            "You might brick your device into a state in which you'd need an SWD programmer to fix it."
         )
         self.logger.error(
             "Please confirm that you REALLY want to do that with --I-understand-what-I-am-doing=yes"
@@ -211,6 +221,9 @@ class Main(App):
                 f"Cannot package resource: name '{tarinfo.name}' too long"
             )
             raise ValueError("Resource name too long")
+        tarinfo.gid = tarinfo.uid = 0
+        tarinfo.mtime = 0
+        tarinfo.uname = tarinfo.gname = "furippa"
         return tarinfo
 
     def package_resources(self, srcdir: str, dst_name: str):
@@ -267,9 +280,9 @@ class Main(App):
 
     @staticmethod
     def batch(iterable, n=1):
-        l = len(iterable)
-        for ndx in range(0, l, n):
-            yield iterable[ndx : min(ndx + n, l)]
+        iterable_len = len(iterable)
+        for ndx in range(0, iterable_len, n):
+            yield iterable[ndx : min(ndx + n, iterable_len)]
 
 
 if __name__ == "__main__":

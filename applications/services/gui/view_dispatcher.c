@@ -2,7 +2,7 @@
 
 #define TAG "ViewDispatcher"
 
-ViewDispatcher* view_dispatcher_alloc() {
+ViewDispatcher* view_dispatcher_alloc(void) {
     ViewDispatcher* view_dispatcher = malloc(sizeof(ViewDispatcher));
 
     view_dispatcher->view_port = view_port_alloc();
@@ -23,7 +23,7 @@ void view_dispatcher_free(ViewDispatcher* view_dispatcher) {
         gui_remove_view_port(view_dispatcher->gui, view_dispatcher->view_port);
     }
     // Crash if not all views were freed
-    furi_assert(!ViewDict_size(view_dispatcher->views));
+    furi_check(!ViewDict_size(view_dispatcher->views));
 
     ViewDict_clear(view_dispatcher->views);
     // Free ViewPort
@@ -37,29 +37,29 @@ void view_dispatcher_free(ViewDispatcher* view_dispatcher) {
 }
 
 void view_dispatcher_enable_queue(ViewDispatcher* view_dispatcher) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->queue == NULL);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->queue == NULL);
     view_dispatcher->queue = furi_message_queue_alloc(16, sizeof(ViewDispatcherMessage));
 }
 
 void view_dispatcher_set_event_callback_context(ViewDispatcher* view_dispatcher, void* context) {
-    furi_assert(view_dispatcher);
+    furi_check(view_dispatcher);
     view_dispatcher->event_context = context;
 }
 
 void view_dispatcher_set_navigation_event_callback(
     ViewDispatcher* view_dispatcher,
     ViewDispatcherNavigationEventCallback callback) {
-    furi_assert(view_dispatcher);
-    furi_assert(callback);
+    furi_check(view_dispatcher);
+    furi_check(callback);
     view_dispatcher->navigation_event_callback = callback;
 }
 
 void view_dispatcher_set_custom_event_callback(
     ViewDispatcher* view_dispatcher,
     ViewDispatcherCustomEventCallback callback) {
-    furi_assert(view_dispatcher);
-    furi_assert(callback);
+    furi_check(view_dispatcher);
+    furi_check(callback);
     view_dispatcher->custom_event_callback = callback;
 }
 
@@ -67,15 +67,15 @@ void view_dispatcher_set_tick_event_callback(
     ViewDispatcher* view_dispatcher,
     ViewDispatcherTickEventCallback callback,
     uint32_t tick_period) {
-    furi_assert(view_dispatcher);
-    furi_assert(callback);
+    furi_check(view_dispatcher);
+    furi_check(callback);
     view_dispatcher->tick_event_callback = callback;
     view_dispatcher->tick_period = tick_period;
 }
 
 void view_dispatcher_run(ViewDispatcher* view_dispatcher) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->queue);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->queue);
 
     uint32_t tick_period = view_dispatcher->tick_period == 0 ? FuriWaitForever :
                                                                view_dispatcher->tick_period;
@@ -109,8 +109,8 @@ void view_dispatcher_run(ViewDispatcher* view_dispatcher) {
 }
 
 void view_dispatcher_stop(ViewDispatcher* view_dispatcher) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->queue);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->queue);
     ViewDispatcherMessage message;
     message.type = ViewDispatcherMessageTypeStop;
     furi_check(
@@ -118,8 +118,8 @@ void view_dispatcher_stop(ViewDispatcher* view_dispatcher) {
 }
 
 void view_dispatcher_add_view(ViewDispatcher* view_dispatcher, uint32_t view_id, View* view) {
-    furi_assert(view_dispatcher);
-    furi_assert(view);
+    furi_check(view_dispatcher);
+    furi_check(view);
     // Check if view id is not used and register view
     furi_check(ViewDict_get(view_dispatcher->views, view_id) == NULL);
 
@@ -139,7 +139,7 @@ void view_dispatcher_add_view(ViewDispatcher* view_dispatcher, uint32_t view_id,
 }
 
 void view_dispatcher_remove_view(ViewDispatcher* view_dispatcher, uint32_t view_id) {
-    furi_assert(view_dispatcher);
+    furi_check(view_dispatcher);
 
     // Lock gui
     if(view_dispatcher->gui) {
@@ -169,7 +169,7 @@ void view_dispatcher_remove_view(ViewDispatcher* view_dispatcher, uint32_t view_
 }
 
 void view_dispatcher_switch_to_view(ViewDispatcher* view_dispatcher, uint32_t view_id) {
-    furi_assert(view_dispatcher);
+    furi_check(view_dispatcher);
     if(view_id == VIEW_NONE) {
         view_dispatcher_set_current_view(view_dispatcher, NULL);
     } else if(view_id == VIEW_IGNORE) {
@@ -181,14 +181,14 @@ void view_dispatcher_switch_to_view(ViewDispatcher* view_dispatcher, uint32_t vi
 }
 
 void view_dispatcher_send_to_front(ViewDispatcher* view_dispatcher) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->gui);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->gui);
     gui_view_port_send_to_front(view_dispatcher->gui, view_dispatcher->view_port);
 }
 
 void view_dispatcher_send_to_back(ViewDispatcher* view_dispatcher) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->gui);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->gui);
     gui_view_port_send_to_back(view_dispatcher->gui, view_dispatcher->view_port);
 }
 
@@ -196,9 +196,9 @@ void view_dispatcher_attach_to_gui(
     ViewDispatcher* view_dispatcher,
     Gui* gui,
     ViewDispatcherType type) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->gui == NULL);
-    furi_assert(gui);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->gui == NULL);
+    furi_check(gui);
 
     if(type == ViewDispatcherTypeDesktop) {
         gui_add_view_port(gui, view_dispatcher->view_port, GuiLayerDesktop);
@@ -207,7 +207,7 @@ void view_dispatcher_attach_to_gui(
     } else if(type == ViewDispatcherTypeFullscreen) {
         gui_add_view_port(gui, view_dispatcher->view_port, GuiLayerFullscreen);
     } else {
-        furi_check(NULL);
+        furi_crash();
     }
     view_dispatcher->gui = gui;
 }
@@ -272,7 +272,6 @@ void view_dispatcher_handle_input(ViewDispatcher* view_dispatcher, InputEvent* e
             } else if(view_dispatcher->navigation_event_callback) {
                 // Dispatch navigation event
                 if(!view_dispatcher->navigation_event_callback(view_dispatcher->event_context)) {
-                    // TODO: should we allow view_dispatcher to stop without navigation_event_callback?
                     view_dispatcher_stop(view_dispatcher);
                     return;
                 }
@@ -309,8 +308,8 @@ void view_dispatcher_handle_custom_event(ViewDispatcher* view_dispatcher, uint32
 }
 
 void view_dispatcher_send_custom_event(ViewDispatcher* view_dispatcher, uint32_t event) {
-    furi_assert(view_dispatcher);
-    furi_assert(view_dispatcher->queue);
+    furi_check(view_dispatcher);
+    furi_check(view_dispatcher->queue);
 
     ViewDispatcherMessage message;
     message.type = ViewDispatcherMessageTypeCustomEvent;
@@ -320,8 +319,15 @@ void view_dispatcher_send_custom_event(ViewDispatcher* view_dispatcher, uint32_t
         furi_message_queue_put(view_dispatcher->queue, &message, FuriWaitForever) == FuriStatusOk);
 }
 
+static const ViewPortOrientation view_dispatcher_view_port_orientation_table[] = {
+    [ViewOrientationVertical] = ViewPortOrientationVertical,
+    [ViewOrientationVerticalFlip] = ViewPortOrientationVerticalFlip,
+    [ViewOrientationHorizontal] = ViewPortOrientationHorizontal,
+    [ViewOrientationHorizontalFlip] = ViewPortOrientationHorizontalFlip,
+};
+
 void view_dispatcher_set_current_view(ViewDispatcher* view_dispatcher, View* view) {
-    furi_assert(view_dispatcher);
+    furi_check(view_dispatcher);
     // Dispatch view exit event
     if(view_dispatcher->current_view) {
         view_exit(view_dispatcher->current_view);
@@ -330,15 +336,12 @@ void view_dispatcher_set_current_view(ViewDispatcher* view_dispatcher, View* vie
     view_dispatcher->current_view = view;
     // Dispatch view enter event
     if(view_dispatcher->current_view) {
-        if(view->orientation == ViewOrientationVertical) {
-            view_port_set_orientation(view_dispatcher->view_port, ViewPortOrientationVertical);
-        } else if(view->orientation == ViewOrientationVerticalFlip) {
-            view_port_set_orientation(view_dispatcher->view_port, ViewPortOrientationVerticalFlip);
-        } else if(view->orientation == ViewOrientationHorizontal) {
-            view_port_set_orientation(view_dispatcher->view_port, ViewPortOrientationHorizontal);
-        } else if(view->orientation == ViewOrientationHorizontalFlip) {
-            view_port_set_orientation(
-                view_dispatcher->view_port, ViewPortOrientationHorizontalFlip);
+        ViewPortOrientation orientation =
+            view_dispatcher_view_port_orientation_table[view->orientation];
+        if(view_port_get_orientation(view_dispatcher->view_port) != orientation) {
+            view_port_set_orientation(view_dispatcher->view_port, orientation);
+            // we just rotated input keys, now it's time to sacrifice some input
+            view_dispatcher->ongoing_input = 0;
         }
         view_enter(view_dispatcher->current_view);
         view_port_enabled_set(view_dispatcher->view_port, true);
@@ -352,8 +355,8 @@ void view_dispatcher_set_current_view(ViewDispatcher* view_dispatcher, View* vie
 }
 
 void view_dispatcher_update(View* view, void* context) {
-    furi_assert(view);
-    furi_assert(context);
+    furi_check(view);
+    furi_check(context);
 
     ViewDispatcher* view_dispatcher = context;
 

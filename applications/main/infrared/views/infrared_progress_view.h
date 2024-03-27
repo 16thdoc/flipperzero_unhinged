@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-/** Anonumous instance */
+/** Anonymous instance */
 typedef struct InfraredProgressView InfraredProgressView;
 
 /** Callback for back button handling */
@@ -20,7 +20,7 @@ typedef void (*InfraredProgressViewBackCallback)(void*);
  *
  * @retval new allocated instance
  */
-InfraredProgressView* infrared_progress_view_alloc();
+InfraredProgressView* infrared_progress_view_alloc(void);
 
 /** Free previously allocated Progress view module instance
  *

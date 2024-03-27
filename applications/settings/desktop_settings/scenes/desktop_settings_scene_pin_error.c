@@ -6,7 +6,7 @@
 #include <desktop/views/desktop_view_pin_input.h>
 #include "desktop_settings_scene.h"
 #include "desktop_settings_scene_i.h"
-#include <desktop/helpers/pin_lock.h>
+#include <desktop/helpers/pin.h>
 #include "../desktop_settings_app.h"
 
 #define SCENE_EVENT_EXIT (0U)
@@ -39,7 +39,7 @@ void desktop_settings_scene_pin_error_on_enter(void* context) {
     } else if(state == SCENE_STATE_PIN_ERROR_WRONG) {
         desktop_view_pin_input_set_label_primary(app->pin_input_view, 35, 8, "Wrong PIN!");
     } else {
-        furi_assert(0);
+        furi_crash();
     }
     desktop_view_pin_input_set_label_secondary(app->pin_input_view, 0, 8, NULL);
     desktop_view_pin_input_set_label_button(app->pin_input_view, "Retry");

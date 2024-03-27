@@ -1,5 +1,5 @@
 #include "../bt_settings_app.h"
-#include "furi_hal_bt.h"
+#include <furi_hal_bt.h>
 
 enum BtSetting {
     BtSettingOff,
@@ -39,7 +39,7 @@ void bt_settings_scene_start_on_enter(void* context) {
     VariableItemList* var_item_list = app->var_item_list;
     VariableItem* item;
 
-    if(furi_hal_bt_is_ble_gatt_gap_supported()) {
+    if(furi_hal_bt_is_gatt_gap_supported()) {
         item = variable_item_list_add(
             var_item_list,
             "Bluetooth",

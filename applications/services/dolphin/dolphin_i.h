@@ -30,14 +30,12 @@ struct Dolphin {
     // Queue
     FuriMessageQueue* event_queue;
     FuriPubSub* pubsub;
-    TimerHandle_t butthurt_timer;
-    TimerHandle_t flush_timer;
-    TimerHandle_t clear_limits_timer;
+    FuriTimer* butthurt_timer;
+    FuriTimer* flush_timer;
+    FuriTimer* clear_limits_timer;
 };
 
-Dolphin* dolphin_alloc();
-
-void dolphin_free(Dolphin* dolphin);
+Dolphin* dolphin_alloc(void);
 
 void dolphin_event_send_async(Dolphin* dolphin, DolphinEvent* event);
 

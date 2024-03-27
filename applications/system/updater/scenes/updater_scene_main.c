@@ -45,7 +45,7 @@ void updater_scene_main_on_enter(void* context) {
     view_dispatcher_switch_to_view(updater->view_dispatcher, UpdaterViewMain);
 }
 
-static void updater_scene_cancel_update() {
+static void updater_scene_cancel_update(void) {
     update_operation_disarm();
     furi_hal_power_reset();
 }
@@ -80,7 +80,7 @@ bool updater_scene_main_on_event(void* context, SceneManagerEvent event) {
             break;
 
         case UpdaterCustomEventSdUnmounted:
-            // TODO: error out, stop worker (it's probably dead actually)
+            // TODO FL-3499: error out, stop worker (it's probably dead actually)
             break;
         default:
             break;

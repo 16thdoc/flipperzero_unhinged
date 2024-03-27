@@ -3,7 +3,7 @@
 #include "../archive_i.h"
 #include <storage/storage.h>
 
-#define TAB_RIGHT InputKeyRight // Default tab switch direction
+#define TAB_LEFT InputKeyLeft // Default tab switch direction
 #define TAB_DEFAULT ArchiveTabFavorites // Start tab
 #define FILE_LIST_BUF_LEN 50
 
@@ -12,11 +12,13 @@ static const char* tab_default_paths[] = {
     [ArchiveTabIButton] = ANY_PATH("ibutton"),
     [ArchiveTabNFC] = ANY_PATH("nfc"),
     [ArchiveTabSubGhz] = ANY_PATH("subghz"),
+    [ArchiveTabSubGhzRemote] = EXT_PATH("subghz_remote"),
     [ArchiveTabLFRFID] = ANY_PATH("lfrfid"),
     [ArchiveTabInfrared] = ANY_PATH("infrared"),
     [ArchiveTabBadUsb] = ANY_PATH("badusb"),
     [ArchiveTabU2f] = "/app:u2f",
     [ArchiveTabApplications] = ANY_PATH("apps"),
+    [ArchiveTabInternal] = STORAGE_INT_PATH_PREFIX,
     [ArchiveTabBrowser] = STORAGE_ANY_PATH_PREFIX,
 };
 
@@ -24,14 +26,17 @@ static const char* known_ext[] = {
     [ArchiveFileTypeIButton] = ".ibtn",
     [ArchiveFileTypeNFC] = ".nfc",
     [ArchiveFileTypeSubGhz] = ".sub",
+    [ArchiveFileTypeSubGhzRemote] = ".txt",
     [ArchiveFileTypeLFRFID] = ".rfid",
     [ArchiveFileTypeInfrared] = ".ir",
     [ArchiveFileTypeBadUsb] = ".txt",
     [ArchiveFileTypeU2f] = "?",
     [ArchiveFileTypeApplication] = ".fap",
+    [ArchiveFileTypeJS] = ".js",
     [ArchiveFileTypeUpdateManifest] = ".fuf",
     [ArchiveFileTypeFolder] = "?",
     [ArchiveFileTypeUnknown] = "*",
+    [ArchiveFileTypeAppOrJs] = ".fap|.js",
 };
 
 static const ArchiveFileTypeEnum known_type[] = {
@@ -39,11 +44,13 @@ static const ArchiveFileTypeEnum known_type[] = {
     [ArchiveTabIButton] = ArchiveFileTypeIButton,
     [ArchiveTabNFC] = ArchiveFileTypeNFC,
     [ArchiveTabSubGhz] = ArchiveFileTypeSubGhz,
+    [ArchiveTabSubGhzRemote] = ArchiveFileTypeSubGhzRemote,
     [ArchiveTabLFRFID] = ArchiveFileTypeLFRFID,
     [ArchiveTabInfrared] = ArchiveFileTypeInfrared,
     [ArchiveTabBadUsb] = ArchiveFileTypeBadUsb,
     [ArchiveTabU2f] = ArchiveFileTypeU2f,
-    [ArchiveTabApplications] = ArchiveFileTypeApplication,
+    [ArchiveTabApplications] = ArchiveFileTypeAppOrJs,
+    [ArchiveTabInternal] = ArchiveFileTypeUnknown,
     [ArchiveTabBrowser] = ArchiveFileTypeUnknown,
 };
 

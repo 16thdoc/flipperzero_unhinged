@@ -40,8 +40,9 @@
 
 #define LFRFID_APP_FOLDER ANY_PATH("lfrfid")
 #define LFRFID_SD_FOLDER EXT_PATH("lfrfid")
-#define LFRFID_APP_EXTENSION ".rfid"
-#define LFRFID_APP_SHADOW_EXTENSION ".shd"
+#define LFRFID_APP_FILENAME_PREFIX "RFID"
+#define LFRFID_APP_FILENAME_EXTENSION ".rfid"
+#define LFRFID_APP_SHADOW_FILENAME_EXTENSION ".shd"
 
 #define LFRFID_APP_RAW_ASK_EXTENSION ".ask.raw"
 #define LFRFID_APP_RAW_PSK_EXTENSION ".psk.raw"
@@ -97,6 +98,8 @@ struct LfRfid {
     uint8_t* old_key_data;
     uint8_t* new_key_data;
 
+    uint8_t password[4];
+
     RpcAppSystem* rpc_ctx;
     LfRfidRpcState rpc_state;
 
@@ -125,6 +128,8 @@ bool lfrfid_save_key(LfRfid* app);
 
 bool lfrfid_load_key_from_file_select(LfRfid* app);
 
+bool lfrfid_load_raw_key_from_file_select(LfRfid* app);
+
 bool lfrfid_delete_key(LfRfid* app);
 
 bool lfrfid_load_key_data(LfRfid* app, FuriString* path, bool show_dialog);
@@ -142,3 +147,5 @@ void lfrfid_popup_timeout_callback(void* context);
 void lfrfid_widget_callback(GuiButtonType result, InputType type, void* context);
 
 void lfrfid_text_input_callback(void* context);
+
+const uint32_t* lfrfid_get_t5577_default_passwords(uint8_t* len);

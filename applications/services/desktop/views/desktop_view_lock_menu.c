@@ -7,7 +7,7 @@
 
 typedef enum {
     DesktopLockMenuIndexLock,
-    DesktopLockMenuIndexPinLock,
+    DesktopLockMenuIndexStealth,
     DesktopLockMenuIndexDummy,
 
     DesktopLockMenuIndexTotalCount
@@ -23,19 +23,19 @@ void desktop_lock_menu_set_callback(
     lock_menu->context = context;
 }
 
-void desktop_lock_menu_set_pin_state(DesktopLockMenuView* lock_menu, bool pin_is_set) {
-    with_view_model(
-        lock_menu->view,
-        DesktopLockMenuViewModel * model,
-        { model->pin_is_set = pin_is_set; },
-        true);
-}
-
 void desktop_lock_menu_set_dummy_mode_state(DesktopLockMenuView* lock_menu, bool dummy_mode) {
     with_view_model(
         lock_menu->view,
         DesktopLockMenuViewModel * model,
         { model->dummy_mode = dummy_mode; },
+        true);
+}
+
+void desktop_lock_menu_set_stealth_mode_state(DesktopLockMenuView* lock_menu, bool stealth_mode) {
+    with_view_model(
+        lock_menu->view,
+        DesktopLockMenuViewModel * model,
+        { model->stealth_mode = stealth_mode; },
         true);
 }
 
@@ -58,15 +58,15 @@ void desktop_lock_menu_draw_callback(Canvas* canvas, void* model) {
 
         if(i == DesktopLockMenuIndexLock) {
             str = "Lock";
-        } else if(i == DesktopLockMenuIndexPinLock) {
-            if(m->pin_is_set) {
-                str = "Lock with PIN";
+        } else if(i == DesktopLockMenuIndexStealth) {
+            if(m->stealth_mode) {
+                str = "Unmute";
             } else {
-                str = "Set PIN";
+                str = "Mute";
             }
         } else if(i == DesktopLockMenuIndexDummy) { //-V547
             if(m->dummy_mode) {
-                str = "Brainiac Mode";
+                str = "Default Mode";
             } else {
                 str = "Dummy Mode";
             }
@@ -93,6 +93,7 @@ bool desktop_lock_menu_input_callback(InputEvent* event, void* context) {
     uint8_t idx = 0;
     bool consumed = false;
     bool dummy_mode = false;
+    bool stealth_mode = false;
     bool update = false;
 
     with_view_model(
@@ -120,14 +121,21 @@ bool desktop_lock_menu_input_callback(InputEvent* event, void* context) {
             }
             idx = model->idx;
             dummy_mode = model->dummy_mode;
+            stealth_mode = model->stealth_mode;
         },
         update);
 
     if(event->key == InputKeyOk) {
-        if((idx == DesktopLockMenuIndexLock) && (event->type == InputTypeShort)) {
-            lock_menu->callback(DesktopLockMenuEventLock, lock_menu->context);
-        } else if((idx == DesktopLockMenuIndexPinLock) && (event->type == InputTypeShort)) {
-            lock_menu->callback(DesktopLockMenuEventPinLock, lock_menu->context);
+        if((idx == DesktopLockMenuIndexLock)) {
+            if(event->type == InputTypeShort) {
+                lock_menu->callback(DesktopLockMenuEventLock, lock_menu->context);
+            }
+        } else if(idx == DesktopLockMenuIndexStealth) {
+            if((stealth_mode == false) && (event->type == InputTypeShort)) {
+                lock_menu->callback(DesktopLockMenuEventStealthModeOn, lock_menu->context);
+            } else if((stealth_mode == true) && (event->type == InputTypeShort)) {
+                lock_menu->callback(DesktopLockMenuEventStealthModeOff, lock_menu->context);
+            }
         } else if(idx == DesktopLockMenuIndexDummy) {
             if((dummy_mode == false) && (event->type == InputTypeShort)) {
                 lock_menu->callback(DesktopLockMenuEventDummyModeOn, lock_menu->context);
@@ -141,7 +149,7 @@ bool desktop_lock_menu_input_callback(InputEvent* event, void* context) {
     return consumed;
 }
 
-DesktopLockMenuView* desktop_lock_menu_alloc() {
+DesktopLockMenuView* desktop_lock_menu_alloc(void) {
     DesktopLockMenuView* lock_menu = malloc(sizeof(DesktopLockMenuView));
     lock_menu->view = view_alloc();
     view_allocate_model(lock_menu->view, ViewModelTypeLocking, sizeof(DesktopLockMenuViewModel));

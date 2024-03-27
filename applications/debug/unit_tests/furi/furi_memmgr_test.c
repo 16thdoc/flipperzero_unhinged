@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
 
-void test_furi_memmgr() {
+void test_furi_memmgr(void) {
     void* ptr;
 
     // allocate memory case
@@ -26,7 +27,6 @@ void test_furi_memmgr() {
         mu_assert_int_eq(66, ((uint8_t*)ptr)[i]);
     }
 
-    // TODO: fix realloc to copy only old size, and write testcase that leftover of reallocated memory is zero-initialized
     free(ptr);
 
     // allocate and zero-initialize array (calloc)

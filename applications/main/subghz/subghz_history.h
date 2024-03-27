@@ -27,6 +27,8 @@ void subghz_history_free(SubGhzHistory* instance);
  */
 void subghz_history_reset(SubGhzHistory* instance);
 
+void subghz_history_delete_item(SubGhzHistory* instance, uint16_t idx);
+
 /** Get frequency to history[idx]
  * 
  * @param instance  - SubGhzHistory instance
@@ -68,6 +70,14 @@ uint8_t subghz_history_get_type_protocol(SubGhzHistory* instance, uint16_t idx);
  */
 const char* subghz_history_get_protocol_name(SubGhzHistory* instance, uint16_t idx);
 
+/** Get datetime from history[idx]
+ * 
+ * @param instance  - SubGhzHistory instance
+ * @param idx       - record index  
+ * @return datetime - DateTime received timestamp  
+ */
+DateTime subghz_history_get_datetime(SubGhzHistory* instance, uint16_t idx);
+
 /** Get string item menu to history[idx]
  * 
  * @param instance  - SubGhzHistory instance
@@ -76,11 +86,19 @@ const char* subghz_history_get_protocol_name(SubGhzHistory* instance, uint16_t i
  */
 void subghz_history_get_text_item_menu(SubGhzHistory* instance, FuriString* output, uint16_t idx);
 
+/** Get time item menu to history[idx]
+ * 
+ * @param instance  - SubGhzHistory instance
+ * @param output    - FuriString* output
+ * @param idx       - record index
+ */
+void subghz_history_get_time_item_menu(SubGhzHistory* instance, FuriString* output, uint16_t idx);
+
 /** Get string the remaining number of records to history
  * 
  * @param instance  - SubGhzHistory instance
  * @param output    - FuriString* output
- * @return bool - is FUUL
+ * @return bool - is FULL
  */
 bool subghz_history_get_text_space_left(SubGhzHistory* instance, FuriString* output);
 
@@ -110,10 +128,3 @@ bool subghz_history_add_to_history(
  * @return SubGhzProtocolCommonLoad*
  */
 FlipperFormat* subghz_history_get_raw_data(SubGhzHistory* instance, uint16_t idx);
-
-/** Set hopper state for internal usage in history
- * 
- * @param instance  - SubGhzHistory instance
- * @param hopper_state - bool is hopper running?
- */
-void subghz_history_set_hopper_state(SubGhzHistory* instance, bool hopper_state);

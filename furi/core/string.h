@@ -32,7 +32,7 @@ typedef struct FuriString FuriString;
  * @brief Allocate new FuriString.
  * @return FuriString* 
  */
-FuriString* furi_string_alloc();
+FuriString* furi_string_alloc(void);
 
 /**
  * @brief Allocate new FuriString and set it to string.
@@ -102,7 +102,7 @@ void furi_string_reserve(FuriString* string, size_t size);
 /**
  * @brief Reset string.
  * Make the string empty.
- * @param s 
+ * @param string
  */
 void furi_string_reset(FuriString* string);
 
@@ -568,26 +568,30 @@ void furi_string_utf8_decode(char c, FuriStringUTF8State* state, FuriStringUnico
 /**
  * @brief Select for 1 argument 
  */
-#define FURI_STRING_SELECT1(func1, func2, a) \
-    _Generic((a), char* : func2, const char* : func2, FuriString* : func1, const FuriString* : func1)(a)
+#define FURI_STRING_SELECT1(func1, func2, a)                                                       \
+    _Generic((a), char*: func2, const char*: func2, FuriString*: func1, const FuriString*: func1)( \
+        a)
 
 /**
  * @brief Select for 2 arguments
  */
-#define FURI_STRING_SELECT2(func1, func2, a, b) \
-    _Generic((b), char* : func2, const char* : func2, FuriString* : func1, const FuriString* : func1)(a, b)
+#define FURI_STRING_SELECT2(func1, func2, a, b)                                                    \
+    _Generic((b), char*: func2, const char*: func2, FuriString*: func1, const FuriString*: func1)( \
+        a, b)
 
 /**
  * @brief Select for 3 arguments
  */
-#define FURI_STRING_SELECT3(func1, func2, a, b, c) \
-    _Generic((b), char* : func2, const char* : func2, FuriString* : func1, const FuriString* : func1)(a, b, c)
+#define FURI_STRING_SELECT3(func1, func2, a, b, c)                                                 \
+    _Generic((b), char*: func2, const char*: func2, FuriString*: func1, const FuriString*: func1)( \
+        a, b, c)
 
 /**
  * @brief Select for 4 arguments
  */
-#define FURI_STRING_SELECT4(func1, func2, a, b, c, d) \
-    _Generic((b), char* : func2, const char* : func2, FuriString* : func1, const FuriString* : func1)(a, b, c, d)
+#define FURI_STRING_SELECT4(func1, func2, a, b, c, d)                                              \
+    _Generic((b), char*: func2, const char*: func2, FuriString*: func1, const FuriString*: func1)( \
+        a, b, c, d)
 
 /**
  * @brief Allocate new FuriString and set it content to string (or C string).
@@ -633,20 +637,17 @@ void furi_string_utf8_decode(char c, FuriStringUTF8State* state, FuriStringUnico
  * @brief Search for a string (or C string) in a string
  * (string, [c]string[, start=0])
  */
-#define furi_string_search(v, ...) \
-    M_APPLY(                       \
-        FURI_STRING_SELECT3,       \
-        furi_string_search,        \
-        furi_string_search_str,    \
-        v,                         \
-        M_IF_DEFAULT1(0, __VA_ARGS__))
-
+#define furi_string_search(...) \
+    M_APPLY(                    \
+        FURI_STRING_SELECT3,    \
+        furi_string_search,     \
+        furi_string_search_str, \
+        M_DEFAULT_ARGS(3, (0), __VA_ARGS__))
 /**
  * @brief Search for a C string in a string
  * (string, cstring[, start=0])
  */
-#define furi_string_search_str(v, ...) \
-    M_APPLY(furi_string_search_str, v, M_IF_DEFAULT1(0, __VA_ARGS__))
+#define furi_string_search_str(...) furi_string_search_str(M_DEFAULT_ARGS(3, (0), __VA_ARGS__))
 
 /**
  * @brief Test if the string starts with the given string (or C string).
@@ -672,41 +673,36 @@ void furi_string_utf8_decode(char c, FuriStringUTF8State* state, FuriStringUnico
  * @brief Trim a string from the given set of characters (default is " \n\r\t").
  * (string[, set=" \n\r\t"])
  */
-#define furi_string_trim(...) M_APPLY(furi_string_trim, M_IF_DEFAULT1("  \n\r\t", __VA_ARGS__))
+#define furi_string_trim(...) furi_string_trim(M_DEFAULT_ARGS(2, ("  \n\r\t"), __VA_ARGS__))
 
 /**
  * @brief Search for a character in a string.
  * (string, character[, start=0])
  */
-#define furi_string_search_char(v, ...) \
-    M_APPLY(furi_string_search_char, v, M_IF_DEFAULT1(0, __VA_ARGS__))
+#define furi_string_search_char(...) furi_string_search_char(M_DEFAULT_ARGS(3, (0), __VA_ARGS__))
 
 /**
  * @brief Reverse Search for a character in a string.
  * (string, character[, start=0])
  */
-#define furi_string_search_rchar(v, ...) \
-    M_APPLY(furi_string_search_rchar, v, M_IF_DEFAULT1(0, __VA_ARGS__))
+#define furi_string_search_rchar(...) furi_string_search_rchar(M_DEFAULT_ARGS(3, (0), __VA_ARGS__))
 
 /**
  * @brief Replace a string to another string (or C string to another C string) in a string.
  * (string, [c]string, [c]string[, start=0])
  */
-#define furi_string_replace(a, b, ...) \
-    M_APPLY(                           \
-        FURI_STRING_SELECT4,           \
-        furi_string_replace,           \
-        furi_string_replace_str,       \
-        a,                             \
-        b,                             \
-        M_IF_DEFAULT1(0, __VA_ARGS__))
+#define furi_string_replace(...) \
+    M_APPLY(                     \
+        FURI_STRING_SELECT4,     \
+        furi_string_replace,     \
+        furi_string_replace_str, \
+        M_DEFAULT_ARGS(4, (0), __VA_ARGS__))
 
 /**
  * @brief Replace a C string to another C string in a string.
  * (string, cstring, cstring[, start=0])
  */
-#define furi_string_replace_str(a, b, ...) \
-    M_APPLY(furi_string_replace_str, a, b, M_IF_DEFAULT1(0, __VA_ARGS__))
+#define furi_string_replace_str(...) furi_string_replace_str(M_DEFAULT_ARGS(4, (0), __VA_ARGS__))
 
 /**
  * @brief INIT OPLIST for FuriString.

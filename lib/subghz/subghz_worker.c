@@ -12,7 +12,6 @@ struct SubGhzWorker {
     volatile bool overrun;
 
     LevelDuration filter_level_duration;
-    bool filter_running;
     uint16_t filter_duration;
 
     SubGhzWorkerOverrunCallback overrun_callback;
@@ -59,24 +58,19 @@ static int32_t subghz_worker_thread_callback(void* context) {
                 bool level = level_duration_get_level(level_duration);
                 uint32_t duration = level_duration_get_duration(level_duration);
 
-                if(instance->filter_running) {
-                    if((duration < instance->filter_duration) ||
-                       (instance->filter_level_duration.level == level)) {
-                        instance->filter_level_duration.duration += duration;
+                if((duration < instance->filter_duration) ||
+                   (instance->filter_level_duration.level == level)) {
+                    instance->filter_level_duration.duration += duration;
 
-                    } else if(instance->filter_level_duration.level != level) {
-                        if(instance->pair_callback)
-                            instance->pair_callback(
-                                instance->context,
-                                instance->filter_level_duration.level,
-                                instance->filter_level_duration.duration);
-
-                        instance->filter_level_duration.duration = duration;
-                        instance->filter_level_duration.level = level;
-                    }
-                } else {
+                } else if(instance->filter_level_duration.level != level) {
                     if(instance->pair_callback)
-                        instance->pair_callback(instance->context, level, duration);
+                        instance->pair_callback(
+                            instance->context,
+                            instance->filter_level_duration.level,
+                            instance->filter_level_duration.duration);
+
+                    instance->filter_level_duration.duration = duration;
+                    instance->filter_level_duration.level = level;
                 }
             }
         }
@@ -85,7 +79,7 @@ static int32_t subghz_worker_thread_callback(void* context) {
     return 0;
 }
 
-SubGhzWorker* subghz_worker_alloc() {
+SubGhzWorker* subghz_worker_alloc(void) {
     SubGhzWorker* instance = malloc(sizeof(SubGhzWorker));
 
     instance->thread =
@@ -94,15 +88,14 @@ SubGhzWorker* subghz_worker_alloc() {
     instance->stream =
         furi_stream_buffer_alloc(sizeof(LevelDuration) * 4096, sizeof(LevelDuration));
 
-    //setting filter
-    instance->filter_running = true;
+    //setting default filter in us
     instance->filter_duration = 30;
 
     return instance;
 }
 
 void subghz_worker_free(SubGhzWorker* instance) {
-    furi_assert(instance);
+    furi_check(instance);
 
     furi_stream_buffer_free(instance->stream);
     furi_thread_free(instance->thread);
@@ -113,23 +106,23 @@ void subghz_worker_free(SubGhzWorker* instance) {
 void subghz_worker_set_overrun_callback(
     SubGhzWorker* instance,
     SubGhzWorkerOverrunCallback callback) {
-    furi_assert(instance);
+    furi_check(instance);
     instance->overrun_callback = callback;
 }
 
 void subghz_worker_set_pair_callback(SubGhzWorker* instance, SubGhzWorkerPairCallback callback) {
-    furi_assert(instance);
+    furi_check(instance);
     instance->pair_callback = callback;
 }
 
 void subghz_worker_set_context(SubGhzWorker* instance, void* context) {
-    furi_assert(instance);
+    furi_check(instance);
     instance->context = context;
 }
 
 void subghz_worker_start(SubGhzWorker* instance) {
-    furi_assert(instance);
-    furi_assert(!instance->running);
+    furi_check(instance);
+    furi_check(!instance->running);
 
     instance->running = true;
 
@@ -137,8 +130,8 @@ void subghz_worker_start(SubGhzWorker* instance) {
 }
 
 void subghz_worker_stop(SubGhzWorker* instance) {
-    furi_assert(instance);
-    furi_assert(instance->running);
+    furi_check(instance);
+    furi_check(instance->running);
 
     instance->running = false;
 
@@ -146,6 +139,11 @@ void subghz_worker_stop(SubGhzWorker* instance) {
 }
 
 bool subghz_worker_is_running(SubGhzWorker* instance) {
-    furi_assert(instance);
+    furi_check(instance);
     return instance->running;
+}
+
+void subghz_worker_set_filter(SubGhzWorker* instance, uint16_t timeout) {
+    furi_check(instance);
+    instance->filter_duration = timeout;
 }

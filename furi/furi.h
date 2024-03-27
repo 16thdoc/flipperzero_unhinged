@@ -16,22 +16,21 @@
 #include "core/semaphore.h"
 #include "core/thread.h"
 #include "core/timer.h"
-#include "core/valuemutex.h"
 #include "core/string.h"
 #include "core/stream_buffer.h"
 
 #include <furi_hal_gpio.h>
 
-// FreeRTOS timer, REMOVE AFTER REFACTORING
-#include <timers.h>
+// Workaround for math.h leaking through HAL in older versions
+#include <math.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void furi_init();
+void furi_init(void);
 
-void furi_run();
+void furi_run(void);
 
 #ifdef __cplusplus
 }

@@ -8,16 +8,18 @@ void dialog_file_browser_set_basic_options(
     DialogsFileBrowserOptions* options,
     const char* extension,
     const Icon* icon) {
+    furi_check(options);
     options->extension = extension;
+    options->base_path = NULL;
     options->skip_assets = true;
+    options->hide_dot_files = true;
     options->icon = icon;
     options->hide_ext = true;
     options->item_loader_callback = NULL;
     options->item_loader_context = NULL;
-    options->base_path = NULL;
 }
 
-static DialogsApp* dialogs_app_alloc() {
+static DialogsApp* dialogs_app_alloc(void) {
     DialogsApp* app = malloc(sizeof(DialogsApp));
     app->message_queue = furi_message_queue_alloc(8, sizeof(DialogsAppMessage));
 

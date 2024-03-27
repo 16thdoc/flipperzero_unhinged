@@ -8,6 +8,8 @@
 #include "../blocks/generic.h"
 #include "../blocks/math.h"
 
+#include "../blocks/custom_btn_i.h"
+
 #define TAG "SubGhzProtocolFaacSLH"
 
 static const SubGhzBlockConst subghz_protocol_faac_slh_const = {
@@ -16,6 +18,18 @@ static const SubGhzBlockConst subghz_protocol_faac_slh_const = {
     .te_delta = 100,
     .min_count_bit_for_found = 64,
 };
+
+static uint32_t temp_fix_backup = 0;
+static uint32_t temp_counter_backup = 0;
+static bool faac_prog_mode = false;
+static bool allow_zero_seed = false;
+
+void faac_slh_reset_prog_mode() {
+    temp_fix_backup = 0;
+    temp_counter_backup = 0;
+    faac_prog_mode = false;
+    allow_zero_seed = false;
+}
 
 struct SubGhzProtocolDecoderFaacSLH {
     SubGhzProtocolDecoderBase base;
@@ -110,7 +124,77 @@ void subghz_protocol_encoder_faac_slh_free(void* context) {
 }
 
 static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* instance) {
-    instance->generic.cnt++;
+    // TODO: Stupid bypass for custom button, remake later
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(0xF);
+    }
+
+    uint8_t custom_btn_id = subghz_custom_btn_get();
+
+    // If we are using UP button - generate programming mode key and send it, otherwise - send regular key if possible
+    if((custom_btn_id == SUBGHZ_CUSTOM_BTN_UP) &&
+       !(!allow_zero_seed && (instance->generic.seed == 0x0))) {
+        uint8_t data_tmp = 0;
+        uint8_t data_prg[8];
+
+        data_prg[0] = 0x00;
+
+        if(allow_zero_seed || (instance->generic.seed != 0x0)) {
+            instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
+            if(temp_counter_backup != 0x0) {
+                temp_counter_backup += furi_hal_subghz_get_rolling_counter_mult();
+            }
+        }
+
+        data_prg[1] = instance->generic.cnt & 0xFF;
+
+        data_prg[2] = (uint8_t)(instance->generic.seed & 0xFF);
+        data_prg[3] = (uint8_t)(instance->generic.seed >> 8 & 0xFF);
+        data_prg[4] = (uint8_t)(instance->generic.seed >> 16 & 0xFF);
+        data_prg[5] = (uint8_t)(instance->generic.seed >> 24);
+
+        data_prg[2] ^= data_prg[1];
+        data_prg[3] ^= data_prg[1];
+        data_prg[4] ^= data_prg[1];
+        data_prg[5] ^= data_prg[1];
+
+        for(uint8_t i = data_prg[1] & 0x0F; i != 0; i--) {
+            data_tmp = data_prg[5];
+
+            data_prg[5] = ((data_prg[5] << 1) & 0xFF) | (data_prg[4] & 0x80) >> 7;
+            data_prg[4] = ((data_prg[4] << 1) & 0xFF) | (data_prg[3] & 0x80) >> 7;
+            data_prg[3] = ((data_prg[3] << 1) & 0xFF) | (data_prg[2] & 0x80) >> 7;
+            data_prg[2] = ((data_prg[2] << 1) & 0xFF) | (data_tmp & 0x80) >> 7;
+        }
+        data_prg[6] = 0x0F;
+        data_prg[7] = 0x52;
+
+        uint32_t enc_prg_1 = data_prg[7] << 24 | data_prg[6] << 16 | data_prg[5] << 8 |
+                             data_prg[4];
+        uint32_t enc_prg_2 = data_prg[3] << 24 | data_prg[2] << 16 | data_prg[1] << 8 |
+                             data_prg[0];
+        instance->generic.data = (uint64_t)enc_prg_1 << 32 | enc_prg_2;
+        //FURI_LOG_D(TAG, "New Prog Mode Key Generated: %016llX\r", instance->generic.data);
+
+        return true;
+    } else {
+        if(!allow_zero_seed && (instance->generic.seed == 0x0)) {
+            // Do not generate new data, send data from buffer
+            return true;
+        }
+        // If we are in prog mode and regular Send button is used - Do not generate new data, send data from buffer
+        if((faac_prog_mode == true) && (instance->generic.serial == 0x0) &&
+           (instance->generic.btn == 0x0) && (temp_fix_backup == 0x0)) {
+            return true;
+        }
+    }
+    // Restore main remote data when we exit programming mode
+    if((instance->generic.serial == 0x0) && (instance->generic.btn == 0x0) &&
+       (temp_fix_backup != 0x0) && !faac_prog_mode) {
+        instance->generic.serial = temp_fix_backup >> 4;
+        instance->generic.btn = temp_fix_backup & 0xF;
+        instance->generic.cnt = temp_counter_backup;
+    }
     uint32_t fix = instance->generic.serial << 4 | instance->generic.btn;
     uint32_t hop = 0;
     uint32_t decrypt = 0;
@@ -121,6 +205,11 @@ static bool subghz_protocol_faac_slh_gen_data(SubGhzProtocolEncoderFaacSLH* inst
     for(int i = 0; i < 8; i++) {
         fixx[i] = (fix >> (shiftby -= 4)) & 0xF;
     }
+
+    if(allow_zero_seed || (instance->generic.seed != 0x0)) {
+        instance->generic.cnt += furi_hal_subghz_get_rolling_counter_mult();
+    }
+
     if((instance->generic.cnt % 2) == 0) {
         decrypt = fixx[6] << 28 | fixx[7] << 24 | fixx[5] << 20 |
                   (instance->generic.cnt & 0xFFFFF);
@@ -167,9 +256,11 @@ bool subghz_protocol_faac_slh_create_data(
     instance->generic.seed = seed;
     instance->manufacture_name = manufacture_name;
     instance->generic.data_count_bit = 64;
+    allow_zero_seed = true;
     bool res = subghz_protocol_faac_slh_gen_data(instance);
     if(res) {
-        res = subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
+        return SubGhzProtocolStatusOk ==
+               subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
     }
     return res;
 }
@@ -217,12 +308,14 @@ static bool subghz_protocol_encoder_faac_slh_get_upload(SubGhzProtocolEncoderFaa
     return true;
 }
 
-bool subghz_protocol_encoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format) {
+SubGhzProtocolStatus
+    subghz_protocol_encoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format) {
     furi_assert(context);
     SubGhzProtocolEncoderFaacSLH* instance = context;
-    bool res = false;
+    SubGhzProtocolStatus res = SubGhzProtocolStatusError;
     do {
-        if(!subghz_block_generic_deserialize(&instance->generic, flipper_format)) {
+        if(SubGhzProtocolStatusOk !=
+           subghz_block_generic_deserialize(&instance->generic, flipper_format)) {
             FURI_LOG_E(TAG, "Deserialize error");
             break;
         }
@@ -234,6 +327,13 @@ bool subghz_protocol_encoder_faac_slh_deserialize(void* context, FlipperFormat* 
             FURI_LOG_E(TAG, "Missing Seed");
             break;
         }
+        bool tmp_allow_zero_seed;
+        if(flipper_format_read_bool(flipper_format, "AllowZeroSeed", &tmp_allow_zero_seed, 1)) {
+            allow_zero_seed = true;
+        } else {
+            allow_zero_seed = false;
+        }
+
         instance->generic.seed = seed_data[0] << 24 | seed_data[1] << 16 | seed_data[2] << 8 |
                                  seed_data[3];
 
@@ -261,7 +361,7 @@ bool subghz_protocol_encoder_faac_slh_deserialize(void* context, FlipperFormat* 
 
         instance->encoder.is_running = true;
 
-        res = true;
+        res = SubGhzProtocolStatusOk;
     } while(false);
 
     return res;
@@ -395,10 +495,61 @@ static void subghz_protocol_faac_slh_check_remote_controller(
     const char** manufacture_name) {
     uint32_t code_fix = instance->data >> 32;
     uint32_t code_hop = instance->data & 0xFFFFFFFF;
-    instance->serial = code_fix >> 4;
-    instance->btn = code_fix & 0xF;
     uint32_t decrypt = 0;
     uint64_t man;
+
+    // TODO: Stupid bypass for custom button, remake later
+    if(subghz_custom_btn_get_original() == 0) {
+        subghz_custom_btn_set_original(0xF);
+    }
+
+    subghz_custom_btn_set_max(1);
+
+    uint8_t data_tmp = 0;
+    uint8_t data_prg[8];
+    data_prg[0] = (code_hop & 0xFF);
+    data_prg[1] = ((code_hop >> 8) & 0xFF);
+    data_prg[2] = ((code_hop >> 16) & 0xFF);
+    data_prg[3] = (code_hop >> 24);
+    data_prg[4] = (code_fix & 0xFF);
+    data_prg[5] = ((code_fix >> 8) & 0xFF);
+    data_prg[6] = ((code_fix >> 16) & 0xFF);
+    data_prg[7] = (code_fix >> 24);
+
+    if(((data_prg[7] == 0x52) && (data_prg[6] == 0x0F) && (data_prg[0] == 0x00))) {
+        faac_prog_mode = true;
+        // ProgMode ON
+        for(uint8_t i = data_prg[1] & 0xF; i != 0; i--) {
+            data_tmp = data_prg[2];
+
+            data_prg[2] = data_prg[2] >> 1 | (data_prg[3] & 1) << 7;
+            data_prg[3] = data_prg[3] >> 1 | (data_prg[4] & 1) << 7;
+            data_prg[4] = data_prg[4] >> 1 | (data_prg[5] & 1) << 7;
+            data_prg[5] = data_prg[5] >> 1 | (data_tmp & 1) << 7;
+        }
+        data_prg[2] ^= data_prg[1];
+        data_prg[3] ^= data_prg[1];
+        data_prg[4] ^= data_prg[1];
+        data_prg[5] ^= data_prg[1];
+        instance->seed = data_prg[5] << 24 | data_prg[4] << 16 | data_prg[3] << 8 | data_prg[2];
+        uint32_t dec_prg_1 = data_prg[7] << 24 | data_prg[6] << 16 | data_prg[5] << 8 |
+                             data_prg[4];
+        uint32_t dec_prg_2 = data_prg[3] << 24 | data_prg[2] << 16 | data_prg[1] << 8 |
+                             data_prg[0];
+        instance->data_2 = (uint64_t)dec_prg_1 << 32 | dec_prg_2;
+        instance->cnt = data_prg[1];
+
+        *manufacture_name = "FAAC_SLH";
+        return;
+    } else {
+        if(code_fix != 0x0) {
+            temp_fix_backup = code_fix;
+            instance->serial = code_fix >> 4;
+            instance->btn = code_fix & 0xF;
+        }
+
+        faac_prog_mode = false;
+    }
 
     for
         M_EACH(manufacture_code, *subghz_keystore_get_data(keystore), SubGhzKeyArray_t) {
@@ -413,6 +564,10 @@ static void subghz_protocol_faac_slh_check_remote_controller(
             }
         }
     instance->cnt = decrypt & 0xFFFFF;
+    // Backup counter in case when we need to use programming mode
+    if(code_fix != 0x0) {
+        temp_counter_backup = instance->cnt;
+    }
 }
 
 uint8_t subghz_protocol_decoder_faac_slh_get_hash_data(void* context) {
@@ -422,22 +577,28 @@ uint8_t subghz_protocol_decoder_faac_slh_get_hash_data(void* context) {
         &instance->decoder, (instance->decoder.decode_count_bit / 8) + 1);
 }
 
-bool subghz_protocol_decoder_faac_slh_serialize(
+SubGhzProtocolStatus subghz_protocol_decoder_faac_slh_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset) {
     furi_assert(context);
     SubGhzProtocolDecoderFaacSLH* instance = context;
 
-    bool res = subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
+    // Reset seed leftover from previous decoded signal
+    instance->generic.seed = 0x0;
+    temp_fix_backup = 0x0;
+
+    SubGhzProtocolStatus res =
+        subghz_block_generic_serialize(&instance->generic, flipper_format, preset);
 
     uint8_t seed_data[sizeof(uint32_t)] = {0};
     for(size_t i = 0; i < sizeof(uint32_t); i++) {
         seed_data[sizeof(uint32_t) - i - 1] = (instance->generic.seed >> i * 8) & 0xFF;
     }
-    if(res && !flipper_format_write_hex(flipper_format, "Seed", seed_data, sizeof(uint32_t))) {
+    if((res == SubGhzProtocolStatusOk) &&
+       !flipper_format_write_hex(flipper_format, "Seed", seed_data, sizeof(uint32_t))) {
         FURI_LOG_E(TAG, "Unable to add Seed");
-        res = false;
+        res = SubGhzProtocolStatusError;
     }
     instance->generic.seed = seed_data[0] << 24 | seed_data[1] << 16 | seed_data[2] << 8 |
                              seed_data[3];
@@ -448,12 +609,14 @@ bool subghz_protocol_decoder_faac_slh_serialize(
     return res;
 }
 
-bool subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format) {
+SubGhzProtocolStatus
+    subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format) {
     furi_assert(context);
     SubGhzProtocolDecoderFaacSLH* instance = context;
-    bool res = false;
+    SubGhzProtocolStatus res = SubGhzProtocolStatusError;
     do {
-        if(!subghz_block_generic_deserialize(&instance->generic, flipper_format)) {
+        if(SubGhzProtocolStatusOk !=
+           subghz_block_generic_deserialize(&instance->generic, flipper_format)) {
             FURI_LOG_E(TAG, "Deserialize error");
             break;
         }
@@ -471,6 +634,12 @@ bool subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* 
             FURI_LOG_E(TAG, "Missing Seed");
             break;
         }
+        bool tmp_allow_zero_seed;
+        if(flipper_format_read_bool(flipper_format, "AllowZeroSeed", &tmp_allow_zero_seed, 1)) {
+            allow_zero_seed = true;
+        } else {
+            allow_zero_seed = false;
+        }
         instance->generic.seed = seed_data[0] << 24 | seed_data[1] << 16 | seed_data[2] << 8 |
                                  seed_data[3];
 
@@ -478,7 +647,7 @@ bool subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* 
             FURI_LOG_E(TAG, "Rewind error");
             break;
         }
-        res = true;
+        res = SubGhzProtocolStatusOk;
     } while(false);
 
     return res;
@@ -492,21 +661,55 @@ void subghz_protocol_decoder_faac_slh_get_string(void* context, FuriString* outp
     uint32_t code_fix = instance->generic.data >> 32;
     uint32_t code_hop = instance->generic.data & 0xFFFFFFFF;
 
-    furi_string_cat_printf(
-        output,
-        "%s %dbit\r\n"
-        "Key:%lX%08lX\r\n"
-        "Fix:%08lX    Cnt:%05lX\r\n"
-        "Hop:%08lX    Btn:%X\r\n"
-        "Sn:%07lX Sd:%08lX",
-        instance->generic.protocol_name,
-        instance->generic.data_count_bit,
-        (uint32_t)(instance->generic.data >> 32),
-        (uint32_t)instance->generic.data,
-        code_fix,
-        instance->generic.cnt,
-        code_hop,
-        instance->generic.btn,
-        instance->generic.serial,
-        instance->generic.seed);
+    if(faac_prog_mode == true) {
+        furi_string_cat_printf(
+            output,
+            "%s %dbit\r\n"
+            "Master Remote Prog Mode\r\n"
+            "Ke:%lX%08lX\r\n"
+            "Kd:%lX%08lX\r\n"
+            "Seed:%08lX mCnt:%02X",
+            instance->generic.protocol_name,
+            instance->generic.data_count_bit,
+            (uint32_t)(instance->generic.data >> 32),
+            (uint32_t)instance->generic.data,
+            (uint32_t)(instance->generic.data_2 >> 32),
+            (uint32_t)instance->generic.data_2,
+            instance->generic.seed,
+            (uint8_t)(instance->generic.cnt & 0xFF));
+    } else if((allow_zero_seed == false) && (instance->generic.seed == 0x0)) {
+        furi_string_cat_printf(
+            output,
+            "%s %dbit\r\n"
+            "Key:%lX%08lX\r\n"
+            "Fix:%08lX\r\n"
+            "Hop:%08lX    Btn:%X\r\n"
+            "Sn:%07lX Sd:Unknown",
+            instance->generic.protocol_name,
+            instance->generic.data_count_bit,
+            (uint32_t)(instance->generic.data >> 32),
+            (uint32_t)instance->generic.data,
+            code_fix,
+            code_hop,
+            instance->generic.btn,
+            instance->generic.serial);
+    } else {
+        furi_string_cat_printf(
+            output,
+            "%s %dbit\r\n"
+            "Key:%lX%08lX\r\n"
+            "Fix:%08lX    Cnt:%05lX\r\n"
+            "Hop:%08lX    Btn:%X\r\n"
+            "Sn:%07lX Sd:%08lX",
+            instance->generic.protocol_name,
+            instance->generic.data_count_bit,
+            (uint32_t)(instance->generic.data >> 32),
+            (uint32_t)instance->generic.data,
+            code_fix,
+            instance->generic.cnt,
+            code_hop,
+            instance->generic.btn,
+            instance->generic.serial,
+            instance->generic.seed);
+    }
 }

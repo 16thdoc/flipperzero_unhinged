@@ -1,17 +1,17 @@
-#include "../nfc_i.h"
+#include "../nfc_app_i.h"
 
 void nfc_scene_restore_original_confirm_dialog_callback(DialogExResult result, void* context) {
-    Nfc* nfc = context;
+    NfcApp* nfc = context;
 
     view_dispatcher_send_custom_event(nfc->view_dispatcher, result);
 }
 
 void nfc_scene_restore_original_confirm_on_enter(void* context) {
-    Nfc* nfc = context;
+    NfcApp* nfc = context;
     DialogEx* dialog_ex = nfc->dialog_ex;
 
     dialog_ex_set_header(dialog_ex, "Restore Card Data?", 64, 0, AlignCenter, AlignTop);
-    dialog_ex_set_icon(dialog_ex, 5, 15, &I_Restoring_38x32);
+    dialog_ex_set_icon(dialog_ex, 5, 11, &I_ArrowC_1_36x36);
     dialog_ex_set_text(
         dialog_ex, "It will be returned\nto its original state.", 47, 21, AlignLeft, AlignTop);
     dialog_ex_set_left_button_text(dialog_ex, "Cancel");
@@ -23,16 +23,16 @@ void nfc_scene_restore_original_confirm_on_enter(void* context) {
 }
 
 bool nfc_scene_restore_original_confirm_on_event(void* context, SceneManagerEvent event) {
-    Nfc* nfc = context;
+    NfcApp* nfc = context;
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == DialogExResultRight) {
-            if(!nfc_device_restore(nfc->dev, true)) {
+            if(nfc_delete_shadow_file(nfc)) {
+                scene_manager_next_scene(nfc->scene_manager, NfcSceneRestoreOriginal);
+            } else {
                 scene_manager_search_and_switch_to_previous_scene(
                     nfc->scene_manager, NfcSceneStart);
-            } else {
-                scene_manager_next_scene(nfc->scene_manager, NfcSceneRestoreOriginal);
             }
             consumed = true;
         } else if(event.event == DialogExResultLeft) {
@@ -46,7 +46,7 @@ bool nfc_scene_restore_original_confirm_on_event(void* context, SceneManagerEven
 }
 
 void nfc_scene_restore_original_confirm_on_exit(void* context) {
-    Nfc* nfc = context;
+    NfcApp* nfc = context;
 
     // Clean view
     dialog_ex_reset(nfc->dialog_ex);

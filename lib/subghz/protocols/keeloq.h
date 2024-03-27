@@ -1,6 +1,7 @@
 #pragma once
 
 #include "base.h"
+#include "public_api.h"
 
 #define SUBGHZ_PROTOCOL_KEELOQ_NAME "KeeLoq"
 
@@ -10,10 +11,6 @@ typedef struct SubGhzProtocolEncoderKeeloq SubGhzProtocolEncoderKeeloq;
 extern const SubGhzProtocolDecoder subghz_protocol_keeloq_decoder;
 extern const SubGhzProtocolEncoder subghz_protocol_keeloq_encoder;
 extern const SubGhzProtocol subghz_protocol_keeloq;
-
-void keeloq_reset_mfname();
-
-void keeloq_reset_kl_type();
 
 /**
  * Allocate SubGhzProtocolEncoderKeeloq.
@@ -29,54 +26,13 @@ void* subghz_protocol_encoder_keeloq_alloc(SubGhzEnvironment* environment);
 void subghz_protocol_encoder_keeloq_free(void* context);
 
 /**
- * Key generation from simple data.
- * @param context Pointer to a SubGhzProtocolEncoderKeeloq instance
- * @param flipper_format Pointer to a FlipperFormat instance
- * @param serial Serial number, 28 bit
- * @param btn Button number, 4 bit
- * @param cnt Counter value, 16 bit
- * @param manufacture_name Name of manufacturer's key
- * @param preset Modulation, SubGhzRadioPreset
- * @return true On success
- */
-bool subghz_protocol_keeloq_create_data(
-    void* context,
-    FlipperFormat* flipper_format,
-    uint32_t serial,
-    uint8_t btn,
-    uint16_t cnt,
-    const char* manufacture_name,
-    SubGhzRadioPreset* preset);
-
-/**
- * Key generation for BFT.
- * @param context Pointer to a SubGhzProtocolEncoderKeeloq instance
- * @param flipper_format Pointer to a FlipperFormat instance
- * @param serial Serial number, 28 bit
- * @param btn Button number, 4 bit
- * @param cnt Counter value, 16 bit
- * @param seed Seed value, 32 bit
- * @param manufacture_name Name of manufacturer's key
- * @param preset Modulation, SubGhzRadioPreset
- * @return true On success
- */
-bool subghz_protocol_keeloq_bft_create_data(
-    void* context,
-    FlipperFormat* flipper_format,
-    uint32_t serial,
-    uint8_t btn,
-    uint16_t cnt,
-    uint32_t seed,
-    const char* manufacture_name,
-    SubGhzRadioPreset* preset);
-
-/**
  * Deserialize and generating an upload to send.
  * @param context Pointer to a SubGhzProtocolEncoderKeeloq instance
  * @param flipper_format Pointer to a FlipperFormat instance
- * @return true On success
+ * @return status
  */
-bool subghz_protocol_encoder_keeloq_deserialize(void* context, FlipperFormat* flipper_format);
+SubGhzProtocolStatus
+    subghz_protocol_encoder_keeloq_deserialize(void* context, FlipperFormat* flipper_format);
 
 /**
  * Forced transmission stop.
@@ -130,9 +86,9 @@ uint8_t subghz_protocol_decoder_keeloq_get_hash_data(void* context);
  * @param context Pointer to a SubGhzProtocolDecoderKeeloq instance
  * @param flipper_format Pointer to a FlipperFormat instance
  * @param preset The modulation on which the signal was received, SubGhzRadioPreset
- * @return true On success
+ * @return SubGhzProtocolStatus
  */
-bool subghz_protocol_decoder_keeloq_serialize(
+SubGhzProtocolStatus subghz_protocol_decoder_keeloq_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset);
@@ -141,9 +97,10 @@ bool subghz_protocol_decoder_keeloq_serialize(
  * Deserialize data SubGhzProtocolDecoderKeeloq.
  * @param context Pointer to a SubGhzProtocolDecoderKeeloq instance
  * @param flipper_format Pointer to a FlipperFormat instance
- * @return true On success
+ * @return SubGhzProtocolStatus
  */
-bool subghz_protocol_decoder_keeloq_deserialize(void* context, FlipperFormat* flipper_format);
+SubGhzProtocolStatus
+    subghz_protocol_decoder_keeloq_deserialize(void* context, FlipperFormat* flipper_format);
 
 /**
  * Getting a textual representation of the received data.

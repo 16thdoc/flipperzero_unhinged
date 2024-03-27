@@ -25,34 +25,13 @@ void* subghz_protocol_encoder_faac_slh_alloc(SubGhzEnvironment* environment);
 void subghz_protocol_encoder_faac_slh_free(void* context);
 
 /**
- * Key generation from simple data.
- * @param context Pointer to a SubGhzProtocolEncoderFaacSLH instance
- * @param flipper_format Pointer to a FlipperFormat instance
- * @param serial Serial number, 28 bit
- * @param btn Button number, 4 bit
- * @param cnt Counter value, 16 bit
- * @param seed Seed value, 32 bit
- * @param manufacture_name Name of manufacturer's key
- * @param preset Modulation, SubGhzRadioPreset
- * @return true On success
- */
-bool subghz_protocol_faac_slh_create_data(
-    void* context,
-    FlipperFormat* flipper_format,
-    uint32_t serial,
-    uint8_t btn,
-    uint32_t cnt,
-    uint32_t seed,
-    const char* manufacture_name,
-    SubGhzRadioPreset* preset);
-
-/**
  * Deserialize and generating an upload to send.
  * @param context Pointer to a SubGhzProtocolEncoderFaacSLH instance
  * @param flipper_format Pointer to a FlipperFormat instance
  * @return true On success
  */
-bool subghz_protocol_encoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format);
+SubGhzProtocolStatus
+    subghz_protocol_encoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format);
 
 /**
  * Forced transmission stop.
@@ -106,9 +85,9 @@ uint8_t subghz_protocol_decoder_faac_slh_get_hash_data(void* context);
  * @param context Pointer to a SubGhzProtocolDecoderFaacSLH instance
  * @param flipper_format Pointer to a FlipperFormat instance
  * @param preset The modulation on which the signal was received, SubGhzRadioPreset
- * @return true On success
+ * @return status
  */
-bool subghz_protocol_decoder_faac_slh_serialize(
+SubGhzProtocolStatus subghz_protocol_decoder_faac_slh_serialize(
     void* context,
     FlipperFormat* flipper_format,
     SubGhzRadioPreset* preset);
@@ -117,9 +96,10 @@ bool subghz_protocol_decoder_faac_slh_serialize(
  * Deserialize data SubGhzProtocolDecoderFaacSLH.
  * @param context Pointer to a SubGhzProtocolDecoderFaacSLH instance
  * @param flipper_format Pointer to a FlipperFormat instance
- * @return true On success
+ * @return status
  */
-bool subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format);
+SubGhzProtocolStatus
+    subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* flipper_format);
 
 /**
  * Getting a textual representation of the received data.
@@ -127,3 +107,7 @@ bool subghz_protocol_decoder_faac_slh_deserialize(void* context, FlipperFormat* 
  * @param output Resulting text
  */
 void subghz_protocol_decoder_faac_slh_get_string(void* context, FuriString* output);
+
+// Reset prog mode vars
+// TODO: Remake in proper way
+void faac_slh_reset_prog_mode();

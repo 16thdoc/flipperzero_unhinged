@@ -1,214 +1,85 @@
 #include "../subghz_i.h"
-#include <lib/subghz/protocols/keeloq.h>
-#include <lib/subghz/protocols/nice_flor_s.h>
-#include <lib/subghz/protocols/faac_slh.h>
-#include <lib/subghz/protocols/secplus_v1.h>
-#include <lib/subghz/protocols/secplus_v2.h>
+#include "../helpers/subghz_txrx_create_protocol_key.h"
 #include <lib/subghz/blocks/math.h>
-#include <flipper_format/flipper_format_i.h>
-#include <lib/toolbox/stream/stream.h>
 #include <lib/subghz/protocols/protocol_items.h>
 
 #define TAG "SubGhzSetType"
-
-bool subghz_scene_set_type_submenu_gen_data_protocol(
-    void* context,
-    const char* protocol_name,
-    uint64_t key,
-    uint32_t bit,
-    uint32_t frequency,
-    const char* preset_name) {
-    furi_assert(context);
-    SubGhz* subghz = context;
-
-    bool res = false;
-
-    subghz_preset_init(subghz, preset_name, frequency, NULL, 0);
-    subghz->txrx->decoder_result =
-        subghz_receiver_search_decoder_base_by_name(subghz->txrx->receiver, protocol_name);
-
-    if(subghz->txrx->decoder_result == NULL) {
-        furi_string_set(subghz->error_str, "Protocol not\nfound!");
-        scene_manager_next_scene(subghz->scene_manager, SubGhzSceneShowErrorSub);
-        return false;
-    }
-
-    do {
-        Stream* fff_data_stream = flipper_format_get_raw_stream(subghz->txrx->fff_data);
-        stream_clean(fff_data_stream);
-        if(!subghz_protocol_decoder_base_serialize(
-               subghz->txrx->decoder_result, subghz->txrx->fff_data, subghz->txrx->preset)) {
-            FURI_LOG_E(TAG, "Unable to serialize");
-            break;
-        }
-        if(!flipper_format_update_uint32(subghz->txrx->fff_data, "Bit", &bit, 1)) {
-            FURI_LOG_E(TAG, "Unable to update Bit");
-            break;
-        }
-
-        uint8_t key_data[sizeof(uint64_t)] = {0};
-        for(size_t i = 0; i < sizeof(uint64_t); i++) {
-            key_data[sizeof(uint64_t) - i - 1] = (key >> (i * 8)) & 0xFF;
-        }
-        if(!flipper_format_update_hex(subghz->txrx->fff_data, "Key", key_data, sizeof(uint64_t))) {
-            FURI_LOG_E(TAG, "Unable to update Key");
-            break;
-        }
-        res = true;
-    } while(false);
-    return res;
-}
 
 void subghz_scene_set_type_submenu_callback(void* context, uint32_t index) {
     SubGhz* subghz = context;
     view_dispatcher_send_custom_event(subghz->view_dispatcher, index);
 }
 
+static const char* submenu_names[SetTypeMAX] = {
+    [SetTypeFaacSLH_Manual_868] = "FAAC SLH [Man.] 868MHz",
+    [SetTypeFaacSLH_Manual_433] = "FAAC SLH [Man.] 433MHz",
+    [SetTypeBFTClone] = "BFT [Manual] 433MHz",
+    [SetTypeFaacSLH_868] = "FAAC SLH 868MHz",
+    [SetTypeFaacSLH_433] = "FAAC SLH 433MHz",
+    [SetTypeBFTMitto] = "BFT Mitto 433MHz",
+    [SetTypeSomfyTelis] = "Somfy Telis 433MHz",
+    [SetTypeANMotorsAT4] = "AN-Motors AT4 433MHz",
+    [SetTypeAlutechAT4N] = "Alutech AT4N 433MHz",
+    [SetTypeHCS101_433_92] = "KL: HCS101 433MHz",
+    [SetTypeDoorHan_315_00] = "KL: DoorHan 315MHz",
+    [SetTypeDoorHan_433_92] = "KL: DoorHan 433MHz",
+    [SetTypeBeninca433] = "KL: Beninca 433MHz",
+    [SetTypeBeninca868] = "KL: Beninca 868MHz",
+    [SetTypeAllmatic433] = "KL: Allmatic 433MHz",
+    [SetTypeAllmatic868] = "KL: Allmatic 868MHz",
+    [SetTypeCenturion433] = "KL: Centurion 433MHz",
+    [SetTypeSommer_FM_434] = "KL: Sommer 434MHz",
+    [SetTypeSommer_FM_868] = "KL: Sommer 868MHz",
+    [SetTypeStilmatic] = "KL: Stilmatic 433MHz",
+    [SetTypeIronLogic] = "KL: IronLogic 433MHz",
+    [SetTypeDeaMio433] = "KL: DEA Mio 433MHz",
+    [SetTypeDTMNeo433] = "KL: DTM Neo 433MHz",
+    [SetTypeGibidi433] = "KL: Gibidi 433MHz",
+    [SetTypeGSN] = "KL: GSN 433MHz",
+    [SetTypeAprimatic] = "KL: Aprimatic 433MHz",
+    [SetTypeElmesElectronic] = "KL: Elmes (PL) 433MHz",
+    [SetTypeNormstahl_433_92] = "KL: Normstahl 433MHz",
+    [SetTypeJCM_433_92] = "KL: JCM Tech 433MHz",
+    [SetTypeFAACRCXT_433_92] = "KL: FAAC RC,XT 433MHz",
+    [SetTypeFAACRCXT_868] = "KL: FAAC RC,XT 868MHz",
+    [SetTypeGeniusBravo433] = "KL: Genius Bravo 433MHz",
+    [SetTypeNiceMHouse_433_92] = "KL: Nice Mhouse 433MHz",
+    [SetTypeNiceSmilo_433_92] = "KL: Nice Smilo 433MHz",
+    [SetTypeNiceFlorS_433_92] = "Nice FloR-S 433MHz",
+    [SetTypeNiceOne_433_92] = "Nice One 433MHz",
+    [SetTypeNiceFlo12bit] = "Nice Flo 12bit 433MHz",
+    [SetTypeNiceFlo24bit] = "Nice Flo 24bit 433MHz",
+    [SetTypeCAME12bit] = "CAME 12bit 433MHz",
+    [SetTypeCAME24bit] = "CAME 24bit 433MHz",
+    [SetTypeCAME12bit868] = "CAME 12bit 868MHz",
+    [SetTypeCAME24bit868] = "CAME 24bit 868MHz",
+    [SetTypeCAMETwee] = "CAME TWEE 433MHz",
+    [SetTypeCameAtomo433] = "CAME Atomo 433MHz",
+    [SetTypeCameAtomo868] = "CAME Atomo 868MHz",
+    [SetTypeCAMESpace] = "KL: CAME Space 433MHz",
+    [SetTypePricenton315] = "Princeton 315MHz",
+    [SetTypePricenton433] = "Princeton 433MHz",
+    [SetTypeBETT_433] = "BETT 433MHz",
+    [SetTypeLinear_300_00] = "Linear 300MHz",
+    // [SetTypeNeroSketch] = "Nero Sketch", // Deleted in OFW
+    // [SetTypeNeroRadio] = "Nero Radio", // Deleted in OFW
+    [SetTypeGateTX] = "Gate TX 433MHz",
+    [SetTypeSecPlus_v1_315_00] = "Security+1.0 315MHz",
+    [SetTypeSecPlus_v1_390_00] = "Security+1.0 390MHz",
+    [SetTypeSecPlus_v1_433_00] = "Security+1.0 433MHz",
+    [SetTypeSecPlus_v2_310_00] = "Security+2.0 310MHz",
+    [SetTypeSecPlus_v2_315_00] = "Security+2.0 315MHz",
+    [SetTypeSecPlus_v2_390_00] = "Security+2.0 390MHz",
+    [SetTypeSecPlus_v2_433_00] = "Security+2.0 433MHz",
+};
+
 void subghz_scene_set_type_on_enter(void* context) {
     SubGhz* subghz = context;
 
-    submenu_add_item(
-        subghz->submenu,
-        "Faac SLH 868MHz",
-        SubmenuIndexFaacSLH_868,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Faac SLH 433MHz",
-        SubmenuIndexFaacSLH_433,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "BFT Mitto 433MHz",
-        SubmenuIndexBFT,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Princeton 433MHz",
-        SubmenuIndexPricenton,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Nice Flo 12bit 433MHz",
-        SubmenuIndexNiceFlo12bit,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Nice Flo 24bit 433MHz",
-        SubmenuIndexNiceFlo24bit,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Nice Smilo 433MHz",
-        SubmenuIndexNiceSmilo_433_92,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Nice FloR-S 433MHz",
-        SubmenuIndexNiceFlorS_433_92,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "CAME 12bit 433MHz",
-        SubmenuIndexCAME12bit,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "CAME 24bit 433MHz",
-        SubmenuIndexCAME24bit,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "BETT 433MHz",
-        SubmenuIndexBETT_433,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Linear 300MHz",
-        SubmenuIndexLinear_300_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "CAME TWEE 433MHz",
-        SubmenuIndexCAMETwee,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    // submenu_add_item(
-    //     subghz->submenu, "Nero Sketch", SubmenuIndexNeroSketch, subghz_scene_set_type_submenu_callback, subghz);
-    // submenu_add_item(
-    //     subghz->submenu, "Nero Radio", SubmenuIndexNeroRadio, subghz_scene_set_type_submenu_callback, subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Gate TX 433MHz",
-        SubmenuIndexGateTX,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "DoorHan 315MHz",
-        SubmenuIndexDoorHan_315_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "DoorHan 433MHz",
-        SubmenuIndexDoorHan_433_92,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+1.0 315MHz",
-        SubmenuIndexLiftMaster_315_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+1.0 390MHz",
-        SubmenuIndexLiftMaster_390_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+1.0 433MHz",
-        SubmenuIndexLiftMaster_433_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+2.0 310MHz",
-        SubmenuIndexSecPlus_v2_310_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+2.0 315MHz",
-        SubmenuIndexSecPlus_v2_315_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+2.0 390MHz",
-        SubmenuIndexSecPlus_v2_390_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
-    submenu_add_item(
-        subghz->submenu,
-        "Security+2.0 433MHz",
-        SubmenuIndexSecPlus_v2_433_00,
-        subghz_scene_set_type_submenu_callback,
-        subghz);
+    for(SetType i = 0; i < SetTypeMAX; i++) {
+        submenu_add_item(
+            subghz->submenu, submenu_names[i], i, subghz_scene_set_type_submenu_callback, subghz);
+    }
 
     submenu_set_selected_item(
         subghz->submenu, scene_manager_get_scene_state(subghz->scene_manager, SubGhzSceneSetType));
@@ -216,323 +87,742 @@ void subghz_scene_set_type_on_enter(void* context) {
     view_dispatcher_switch_to_view(subghz->view_dispatcher, SubGhzViewIdMenu);
 }
 
+typedef enum {
+    GenData,
+    GenFaacSLH,
+    GenKeeloq,
+    GenCameAtomo,
+    GenKeeloqBFT,
+    GenAlutechAt4n,
+    GenSomfyTelis,
+    GenNiceFlorS,
+    GenSecPlus1,
+    GenSecPlus2,
+} GenType;
+
+typedef struct {
+    GenType type;
+    const char* mod;
+    uint32_t freq;
+    union {
+        struct {
+            const char* name;
+            uint32_t key;
+            uint8_t bits;
+            uint16_t te;
+        } data;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint8_t cnt;
+            uint32_t seed;
+            const char* manuf;
+        } faac_slh;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint8_t cnt;
+            const char* manuf;
+        } keeloq;
+        struct {
+            uint32_t serial;
+            uint8_t cnt;
+        } came_atomo;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint8_t cnt;
+            uint32_t seed;
+            const char* manuf;
+        } keeloq_bft;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint8_t cnt;
+        } alutech_at_4n;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint8_t cnt;
+        } somfy_telis;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint8_t cnt;
+            bool nice_one;
+        } nice_flor_s;
+        struct {
+            uint32_t serial;
+            uint8_t btn;
+            uint32_t cnt;
+        } sec_plus_2;
+    };
+} GenInfo;
+
 bool subghz_scene_set_type_on_event(void* context, SceneManagerEvent event) {
     SubGhz* subghz = context;
     bool generated_protocol = false;
 
     if(event.type == SceneManagerEventTypeCustom) {
-        //ToDo Fix
-        uint32_t key = subghz_random_serial();
+        if(event.event >= SetTypeMAX) {
+            return false;
+        }
+        scene_manager_set_scene_state(subghz->scene_manager, SubGhzSceneSetType, event.event);
+
+        if(event.event == SetTypeFaacSLH_Manual_868 || event.event == SetTypeFaacSLH_Manual_433 ||
+           event.event == SetTypeBFTClone) {
+            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetFix);
+            return true;
+        }
+
+        uint32_t key = (uint32_t)rand();
+        GenInfo gen_info = {0};
         switch(event.event) {
-        case SubmenuIndexFaacSLH_868:
-            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetFixFaac);
+        case SetTypePricenton433:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_PRINCETON_NAME,
+                .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+                .data.bits = 24,
+                .data.te = 400};
             break;
-        case SubmenuIndexFaacSLH_433:
-            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetFixFaac);
+        case SetTypePricenton315:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 315000000,
+                .data.name = SUBGHZ_PROTOCOL_PRINCETON_NAME,
+                .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+                .data.bits = 24,
+                .data.te = 400};
             break;
-        case SubmenuIndexBFT:
-            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSetFixBft);
+        case SetTypeNiceFlo12bit:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_NICE_FLO_NAME,
+                .data.key = (key & 0x00000FF0) | 0x1, // btn 0x1, 0x2, 0x4
+                .data.bits = 12,
+                .data.te = 0};
             break;
-        case SubmenuIndexPricenton:
-            key = (key & 0x00FFFFF0) | 0x4; //btn 0x1, 0x2, 0x4, 0x8
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_PRINCETON_NAME, key, 24, 433920000, "AM650")) {
-                uint32_t te = 400;
-                flipper_format_update_uint32(subghz->txrx->fff_data, "TE", (uint32_t*)&te, 1);
-                generated_protocol = true;
-            }
+        case SetTypeNiceFlo24bit:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_NICE_FLO_NAME,
+                .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+                .data.bits = 24,
+                .data.te = 0};
             break;
-        case SubmenuIndexNiceFlo12bit:
-            key = (key & 0x0000FFF0) | 0x1; //btn 0x1, 0x2, 0x4
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_NICE_FLO_NAME, key, 12, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeCAME12bit:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
+                .data.key = (key & 0x00000FF0) | 0x1, // btn 0x1, 0x2, 0x4
+                .data.bits = 12,
+                .data.te = 0};
             break;
-        case SubmenuIndexNiceFlo24bit:
-            key = (key & 0x00FFFFF0) | 0x4; //btn 0x1, 0x2, 0x4, 0x8
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_NICE_FLO_NAME, key, 24, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeCAME24bit:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
+                .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+                .data.bits = 24,
+                .data.te = 0};
             break;
-        case SubmenuIndexCAME12bit:
-            key = (key & 0x0000FFF0) | 0x1; //btn 0x1, 0x2, 0x4
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_CAME_NAME, key, 12, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeCAME12bit868:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 868350000,
+                .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
+                .data.key = (key & 0x00000FF0) | 0x1, // btn 0x1, 0x2, 0x4
+                .data.bits = 12,
+                .data.te = 0};
             break;
-        case SubmenuIndexCAME24bit:
-            key = (key & 0x00FFFFF0) | 0x4; //btn 0x1, 0x2, 0x4, 0x8
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_CAME_NAME, key, 24, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeCAME24bit868:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 868350000,
+                .data.name = SUBGHZ_PROTOCOL_CAME_NAME,
+                .data.key = (key & 0x00FFFFF0) | 0x4, // btn 0x1, 0x2, 0x4, 0x8
+                .data.bits = 24,
+                .data.te = 0};
             break;
-        case SubmenuIndexLinear_300_00:
-            key = (key & 0x3FF);
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_LINEAR_NAME, key, 10, 300000000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeLinear_300_00:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 300000000,
+                .data.name = SUBGHZ_PROTOCOL_LINEAR_NAME,
+                .data.key = (key & 0x3FF),
+                .data.bits = 10,
+                .data.te = 0};
             break;
-        case SubmenuIndexBETT_433:
-            key = (key & 0x0000FFF0);
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_BETT_NAME, key, 18, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeBETT_433:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_BETT_NAME,
+                .data.key = (key & 0x0000FFF0),
+                .data.bits = 18,
+                .data.te = 0};
             break;
-        case SubmenuIndexCAMETwee:
-            key = (key & 0x0FFFFFF0);
-            key = 0x003FFF7200000000 | (key ^ 0xE0E0E0EE);
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_CAME_TWEE_NAME, key, 54, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeCAMETwee:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_CAME_TWEE_NAME,
+                .data.key = 0x003FFF7200000000 | ((key & 0x0FFFFFF0) ^ 0xE0E0E0EE), // ????
+                .data.bits = 54,
+                .data.te = 0};
             break;
-        // case SubmenuIndexNeroSketch:
-        //     /* code */
-        //     break;
-        // case SubmenuIndexNeroRadio:
-        //     /* code */
-        //     break;
-        case SubmenuIndexGateTX:
-            key = (key & 0x00F0FF00) | 0xF << 16 | 0x40; //btn 0xF, 0xC, 0xA, 0x6 (?)
-            uint64_t rev_key = subghz_protocol_blocks_reverse_key(key, 24);
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz, SUBGHZ_PROTOCOL_GATE_TX_NAME, rev_key, 24, 433920000, "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeGateTX:
+            gen_info = (GenInfo){
+                .type = GenData,
+                .mod = "AM650",
+                .freq = 433920000,
+                .data.name = SUBGHZ_PROTOCOL_GATE_TX_NAME, // btn 0xF, 0xC, 0xA, 0x6 (?)
+                .data.key = subghz_protocol_blocks_reverse_key((key & 0x00F0FF00) | 0xF0040, 24),
+                .data.bits = 24,
+                .data.te = 0};
             break;
-        case SubmenuIndexDoorHan_433_92:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_KEELOQ_NAME);
-            subghz_preset_init(
-                subghz, "AM650", subghz_setting_get_default_frequency(subghz->setting), NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_keeloq_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key & 0x0FFFFFFF,
-                    0x2,
-                    0x0003,
-                    "DoorHan",
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
-            if(!generated_protocol) {
-                furi_string_set(
-                    subghz->error_str, "Function requires\nan SD card with\nfresh databases.");
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneShowError);
-            }
+        case SetTypeFaacSLH_433:
+            gen_info = (GenInfo){
+                .type = GenFaacSLH,
+                .mod = "AM650",
+                .freq = 433920000,
+                .faac_slh.serial = ((key & 0x00FFFFF0) | 0xA0000006) >> 4,
+                .faac_slh.btn = 0x06,
+                .faac_slh.cnt = 0x02,
+                .faac_slh.seed = key,
+                .faac_slh.manuf = "FAAC_SLH"};
             break;
-        case SubmenuIndexDoorHan_315_00:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_KEELOQ_NAME);
-            subghz_preset_init(subghz, "AM650", 315000000, NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_keeloq_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key & 0x0FFFFFFF,
-                    0x2,
-                    0x0003,
-                    "DoorHan",
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
-            if(!generated_protocol) {
-                furi_string_set(
-                    subghz->error_str, "Function requires\nan SD card with\nfresh databases.");
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneShowError);
-            }
+        case SetTypeFaacSLH_868:
+            gen_info = (GenInfo){
+                .type = GenFaacSLH,
+                .mod = "AM650",
+                .freq = 868350000,
+                .faac_slh.serial = ((key & 0x00FFFFF0) | 0xA0000006) >> 4,
+                .faac_slh.btn = 0x06,
+                .faac_slh.cnt = 0x02,
+                .faac_slh.seed = key,
+                .faac_slh.manuf = "FAAC_SLH"};
             break;
-        case SubmenuIndexNiceFlorS_433_92:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_NICE_FLOR_S_NAME);
-            subghz_preset_init(
-                subghz, "AM650", subghz_setting_get_default_frequency(subghz->setting), NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_nice_flor_s_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key & 0x0FFFFFFF,
-                    0x1,
-                    0x0003,
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
-            if(!generated_protocol) {
-                furi_string_set(
-                    subghz->error_str, "Function requires\nan SD card with\nfresh databases.");
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneShowError);
-            }
+        case SetTypeBeninca433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x000FFF00) | 0x00800080,
+                .keeloq.btn = 0x01,
+                .keeloq.cnt = 0x05,
+                .keeloq.manuf = "Beninca"};
             break;
-        case SubmenuIndexNiceSmilo_433_92:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_KEELOQ_NAME);
-            subghz_preset_init(
-                subghz, "AM650", subghz_setting_get_default_frequency(subghz->setting), NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_keeloq_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key & 0x00FFFFFF,
-                    0x2,
-                    0x0003,
-                    "NICE_Smilo",
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
-            if(!generated_protocol) {
-                furi_string_set(
-                    subghz->error_str, "Function requires\nan SD card with\nfresh databases.");
-                scene_manager_next_scene(subghz->scene_manager, SubGhzSceneShowError);
-            }
+        case SetTypeBeninca868:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 868350000,
+                .keeloq.serial = (key & 0x000FFF00) | 0x00800080,
+                .keeloq.btn = 0x01,
+                .keeloq.cnt = 0x05,
+                .keeloq.manuf = "Beninca"};
             break;
-        case SubmenuIndexLiftMaster_315_00:
-            while(!subghz_protocol_secplus_v1_check_fixed(key)) {
-                key = subghz_random_serial();
-            }
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz,
-                   SUBGHZ_PROTOCOL_SECPLUS_V1_NAME,
-                   (uint64_t)key << 32 | 0xE6000000,
-                   42,
-                   315000000,
-                   "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeAllmatic433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x00FFFF00) | 0x01000011,
+                .keeloq.btn = 0x0C,
+                .keeloq.cnt = 0x05,
+                .keeloq.manuf = "Beninca"};
             break;
-        case SubmenuIndexLiftMaster_390_00:
-            while(!subghz_protocol_secplus_v1_check_fixed(key)) {
-                key = subghz_random_serial();
-            }
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz,
-                   SUBGHZ_PROTOCOL_SECPLUS_V1_NAME,
-                   (uint64_t)key << 32 | 0xE6000000,
-                   42,
-                   390000000,
-                   "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeAllmatic868:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 868350000,
+                .keeloq.serial = (key & 0x00FFFF00) | 0x01000011,
+                .keeloq.btn = 0x0C,
+                .keeloq.cnt = 0x05,
+                .keeloq.manuf = "Beninca"};
             break;
-        case SubmenuIndexLiftMaster_433_00:
-            while(!subghz_protocol_secplus_v1_check_fixed(key)) {
-                key = subghz_random_serial();
-            }
-            if(subghz_scene_set_type_submenu_gen_data_protocol(
-                   subghz,
-                   SUBGHZ_PROTOCOL_SECPLUS_V1_NAME,
-                   (uint64_t)key << 32 | 0xE6000000,
-                   42,
-                   433920000,
-                   "AM650")) {
-                generated_protocol = true;
-            }
+        case SetTypeCenturion433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x0000FFFF),
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Centurion"};
             break;
-        case SubmenuIndexSecPlus_v2_310_00:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_SECPLUS_V2_NAME);
-            subghz_preset_init(subghz, "AM650", 310000000, NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_secplus_v2_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key,
-                    0x68,
-                    0xE500000,
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
+        case SetTypeElmesElectronic:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x00FFFFFF) | 0x02000000,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Elmes_Poland"};
             break;
-        case SubmenuIndexSecPlus_v2_315_00:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_SECPLUS_V2_NAME);
-            subghz_preset_init(subghz, "AM650", 315000000, NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_secplus_v2_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key,
-                    0x68,
-                    0xE500000,
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
+        case SetTypeANMotorsAT4:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x000FFFFF) | 0x04700000,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x21,
+                .keeloq.manuf = "AN-Motors"};
             break;
-        case SubmenuIndexSecPlus_v2_390_00:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_SECPLUS_V2_NAME);
-            subghz_preset_init(subghz, "AM650", 390000000, NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_secplus_v2_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key,
-                    0x68,
-                    0xE500000,
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
+        case SetTypeAprimatic:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x000FFFFF) | 0x00600000,
+                .keeloq.btn = 0x04,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Aprimatic"};
             break;
-        case SubmenuIndexSecPlus_v2_433_00:
-            subghz->txrx->transmitter = subghz_transmitter_alloc_init(
-                subghz->txrx->environment, SUBGHZ_PROTOCOL_SECPLUS_V2_NAME);
-            subghz_preset_init(subghz, "AM650", 433920000, NULL, 0);
-            if(subghz->txrx->transmitter) {
-                subghz_protocol_secplus_v2_create_data(
-                    subghz_transmitter_get_protocol_instance(subghz->txrx->transmitter),
-                    subghz->txrx->fff_data,
-                    key,
-                    0x68,
-                    0xE500000,
-                    subghz->txrx->preset);
-                generated_protocol = true;
-            } else {
-                generated_protocol = false;
-            }
-            subghz_transmitter_free(subghz->txrx->transmitter);
+        case SetTypeGibidi433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Gibidi"};
+            break;
+        case SetTypeGSN:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x0FFFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "GSN"};
+            break;
+        case SetTypeIronLogic:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFF0,
+                .keeloq.btn = 0x04,
+                .keeloq.cnt = 0x05,
+                .keeloq.manuf = "IronLogic"};
+            break;
+        case SetTypeStilmatic:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x0FFFFFFF,
+                .keeloq.btn = 0x01,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Stilmatic"};
+            break;
+        case SetTypeSommer_FM_434:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "FM476",
+                .freq = 434420000,
+                .keeloq.serial = key & 0x0FFFFFFF,
+                .keeloq.btn = 0x04,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Sommer(fsk476)"};
+            break;
+        case SetTypeSommer_FM_868:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "FM476",
+                .freq = 868800000,
+                .keeloq.serial = key & 0x0FFFFFFF,
+                .keeloq.btn = 0x04,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Sommer(fsk476)"};
+            break;
+        case SetTypeDTMNeo433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x000FFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x05,
+                .keeloq.manuf = "DTM_Neo"};
+            break;
+        case SetTypeCAMESpace:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Came_Space"};
+            break;
+        case SetTypeCameAtomo433:
+            gen_info = (GenInfo){
+                .type = GenCameAtomo,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x0FFFFFFF) | 0x10000000,
+                .keeloq.cnt = 0x03};
+            break;
+        case SetTypeCameAtomo868:
+            gen_info = (GenInfo){
+                .type = GenCameAtomo,
+                .mod = "AM650",
+                .freq = 868350000,
+                .keeloq.serial = (key & 0x0FFFFFFF) | 0x10000000,
+                .keeloq.cnt = 0x03};
+            break;
+        case SetTypeBFTMitto:
+            gen_info = (GenInfo){
+                .type = GenKeeloqBFT,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq_bft.serial = key & 0x000FFFFF,
+                .keeloq_bft.btn = 0x02,
+                .keeloq_bft.cnt = 0x02,
+                .keeloq_bft.seed = key & 0x000FFFFF,
+                .keeloq_bft.manuf = "BFT"};
+            break;
+        case SetTypeAlutechAT4N:
+            gen_info = (GenInfo){
+                .type = GenAlutechAt4n,
+                .mod = "AM650",
+                .freq = 433920000,
+                .alutech_at_4n.serial = (key & 0x000FFFFF) | 0x00100000,
+                .alutech_at_4n.btn = 0x44,
+                .alutech_at_4n.cnt = 0x03};
+            break;
+        case SetTypeSomfyTelis:
+            gen_info = (GenInfo){
+                .type = GenSomfyTelis,
+                .mod = "AM650",
+                .freq = 433420000,
+                .somfy_telis.serial = key & 0x00FFFFFF,
+                .somfy_telis.btn = 0x02,
+                .somfy_telis.cnt = 0x03};
+            break;
+        case SetTypeDoorHan_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x0FFFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "DoorHan"};
+            break;
+        case SetTypeDoorHan_315_00:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 315000000,
+                .keeloq.serial = key & 0x0FFFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "DoorHan"};
+            break;
+        case SetTypeNiceFlorS_433_92:
+            gen_info = (GenInfo){
+                .type = GenNiceFlorS,
+                .mod = "AM650",
+                .freq = 433920000,
+                .nice_flor_s.serial = key & 0x0FFFFFFF,
+                .nice_flor_s.btn = 0x01,
+                .nice_flor_s.cnt = 0x03,
+                .nice_flor_s.nice_one = false};
+            break;
+        case SetTypeNiceOne_433_92:
+            gen_info = (GenInfo){
+                .type = GenNiceFlorS,
+                .mod = "AM650",
+                .freq = 433920000,
+                .nice_flor_s.serial = key & 0x0FFFFFFF,
+                .nice_flor_s.btn = 0x01,
+                .nice_flor_s.cnt = 0x03,
+                .nice_flor_s.nice_one = true};
+            break;
+        case SetTypeNiceSmilo_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "NICE_Smilo"};
+            break;
+        case SetTypeNiceMHouse_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "NICE_MHOUSE"};
+            break;
+        case SetTypeDeaMio433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x0FFFF000) | 0x00000869,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Dea_Mio"};
+            break;
+        case SetTypeGeniusBravo433:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x06,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Genius_Bravo"};
+            break;
+        case SetTypeJCM_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "JCM_Tech"};
+            break;
+        case SetTypeFAACRCXT_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = (key & 0x0000FFFF) | 0x00100000,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "FAAC_RC,XT"};
+            break;
+        case SetTypeFAACRCXT_868:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 868350000,
+                .keeloq.serial = (key & 0x0000FFFF) | 0x00100000,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "FAAC_RC,XT"};
+            break;
+        case SetTypeNormstahl_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x00FFFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "Normstahl"};
+            break;
+        case SetTypeHCS101_433_92:
+            gen_info = (GenInfo){
+                .type = GenKeeloq,
+                .mod = "AM650",
+                .freq = 433920000,
+                .keeloq.serial = key & 0x000FFFFF,
+                .keeloq.btn = 0x02,
+                .keeloq.cnt = 0x03,
+                .keeloq.manuf = "HCS101"};
+            break;
+        case SetTypeSecPlus_v1_315_00:
+            gen_info = (GenInfo){.type = GenSecPlus1, .mod = "AM650", .freq = 315000000};
+            break;
+        case SetTypeSecPlus_v1_390_00:
+            gen_info = (GenInfo){.type = GenSecPlus1, .mod = "AM650", .freq = 390000000};
+            break;
+        case SetTypeSecPlus_v1_433_00:
+            gen_info = (GenInfo){.type = GenSecPlus1, .mod = "AM650", .freq = 433920000};
+            break;
+        case SetTypeSecPlus_v2_310_00:
+            gen_info = (GenInfo){
+                .type = GenSecPlus2,
+                .mod = "AM650",
+                .freq = 310000000,
+                .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+                .sec_plus_2.btn = 0x68,
+                .sec_plus_2.cnt = 0xE500000};
+            break;
+        case SetTypeSecPlus_v2_315_00:
+            gen_info = (GenInfo){
+                .type = GenSecPlus2,
+                .mod = "AM650",
+                .freq = 315000000,
+                .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+                .sec_plus_2.btn = 0x68,
+                .sec_plus_2.cnt = 0xE500000};
+            break;
+        case SetTypeSecPlus_v2_390_00:
+            gen_info = (GenInfo){
+                .type = GenSecPlus2,
+                .mod = "AM650",
+                .freq = 390000000,
+                .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+                .sec_plus_2.btn = 0x68,
+                .sec_plus_2.cnt = 0xE500000};
+            break;
+        case SetTypeSecPlus_v2_433_00:
+            gen_info = (GenInfo){
+                .type = GenSecPlus2,
+                .mod = "AM650",
+                .freq = 433920000,
+                .sec_plus_2.serial = (key & 0x7FFFF3FC), // 850LM pairing
+                .sec_plus_2.btn = 0x68,
+                .sec_plus_2.cnt = 0xE500000};
             break;
         default:
-            return false;
+            furi_crash("Not implemented");
             break;
         }
 
-        scene_manager_set_scene_state(subghz->scene_manager, SubGhzSceneSetType, event.event);
+        switch(gen_info.type) {
+        case GenData:
+            if(gen_info.data.te) {
+                generated_protocol = subghz_txrx_gen_data_protocol_and_te(
+                    subghz->txrx,
+                    gen_info.mod,
+                    gen_info.freq,
+                    gen_info.data.name,
+                    gen_info.data.key,
+                    gen_info.data.bits,
+                    gen_info.data.te);
+            } else {
+                generated_protocol = subghz_txrx_gen_data_protocol(
+                    subghz->txrx,
+                    gen_info.mod,
+                    gen_info.freq,
+                    gen_info.data.name,
+                    gen_info.data.key,
+                    gen_info.data.bits);
+            }
+            break;
+        case GenFaacSLH:
+            generated_protocol = subghz_txrx_gen_faac_slh_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.faac_slh.serial,
+                gen_info.faac_slh.btn,
+                gen_info.faac_slh.cnt,
+                gen_info.faac_slh.seed,
+                gen_info.faac_slh.manuf);
+            break;
+        case GenKeeloq:
+            generated_protocol = subghz_txrx_gen_keeloq_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.keeloq.serial,
+                gen_info.keeloq.btn,
+                gen_info.keeloq.cnt,
+                gen_info.keeloq.manuf);
+            break;
+        case GenCameAtomo:
+            generated_protocol = subghz_txrx_gen_came_atomo_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.came_atomo.serial,
+                gen_info.came_atomo.cnt);
+            break;
+        case GenKeeloqBFT:
+            generated_protocol = subghz_txrx_gen_keeloq_bft_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.keeloq_bft.serial,
+                gen_info.keeloq_bft.btn,
+                gen_info.keeloq_bft.cnt,
+                gen_info.keeloq_bft.seed,
+                gen_info.keeloq_bft.manuf);
+            break;
+        case GenAlutechAt4n:
+            generated_protocol = subghz_txrx_gen_alutech_at_4n_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.alutech_at_4n.serial,
+                gen_info.alutech_at_4n.btn,
+                gen_info.alutech_at_4n.cnt);
+            break;
+        case GenSomfyTelis:
+            generated_protocol = subghz_txrx_gen_somfy_telis_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.somfy_telis.serial,
+                gen_info.somfy_telis.btn,
+                gen_info.somfy_telis.cnt);
+            break;
+        case GenNiceFlorS:
+            generated_protocol = subghz_txrx_gen_nice_flor_s_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.nice_flor_s.serial,
+                gen_info.nice_flor_s.btn,
+                gen_info.nice_flor_s.cnt,
+                gen_info.nice_flor_s.nice_one);
+            break;
+        case GenSecPlus1:
+            generated_protocol =
+                subghz_txrx_gen_secplus_v1_protocol(subghz->txrx, gen_info.mod, gen_info.freq);
+            break;
+        case GenSecPlus2:
+            generated_protocol = subghz_txrx_gen_secplus_v2_protocol(
+                subghz->txrx,
+                gen_info.mod,
+                gen_info.freq,
+                gen_info.sec_plus_2.serial,
+                gen_info.sec_plus_2.btn,
+                gen_info.sec_plus_2.cnt);
+            break;
+        default:
+            furi_crash("Not implemented");
+            break;
+        }
 
         if(generated_protocol) {
             subghz_file_name_clear(subghz);
             scene_manager_next_scene(subghz->scene_manager, SubGhzSceneSaveName);
-            return true;
+        } else {
+            furi_string_set(
+                subghz->error_str, "Function requires\nan SD card with\nfresh databases.");
+            scene_manager_next_scene(subghz->scene_manager, SubGhzSceneShowError);
         }
     }
 
-    return false;
+    return generated_protocol;
 }
 
 void subghz_scene_set_type_on_exit(void* context) {

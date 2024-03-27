@@ -1,4 +1,4 @@
-#include "../infrared_i.h"
+#include "../infrared_app_i.h"
 
 typedef enum {
     SubmenuIndexUniversalTV,
@@ -9,12 +9,12 @@ typedef enum {
 } SubmenuIndex;
 
 static void infrared_scene_universal_submenu_callback(void* context, uint32_t index) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     view_dispatcher_send_custom_event(infrared->view_dispatcher, index);
 }
 
 void infrared_scene_universal_on_enter(void* context) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     Submenu* submenu = infrared->submenu;
 
     submenu_add_item(
@@ -52,13 +52,14 @@ void infrared_scene_universal_on_enter(void* context) {
         infrared_scene_universal_submenu_callback,
         context);
 
-    submenu_set_selected_item(submenu, 0);
+    submenu_set_selected_item(
+        submenu, scene_manager_get_scene_state(infrared->scene_manager, InfraredSceneUniversal));
 
     view_dispatcher_switch_to_view(infrared->view_dispatcher, InfraredViewSubmenu);
 }
 
 bool infrared_scene_universal_on_event(void* context, SceneManagerEvent event) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     SceneManager* scene_manager = infrared->scene_manager;
     bool consumed = false;
 
@@ -79,12 +80,13 @@ bool infrared_scene_universal_on_event(void* context, SceneManagerEvent event) {
             scene_manager_next_scene(scene_manager, InfraredSceneUniversalAC);
             consumed = true;
         }
+        scene_manager_set_scene_state(scene_manager, InfraredSceneUniversal, event.event);
     }
 
     return consumed;
 }
 
 void infrared_scene_universal_on_exit(void* context) {
-    Infrared* infrared = context;
+    InfraredApp* infrared = context;
     submenu_reset(infrared->submenu);
 }

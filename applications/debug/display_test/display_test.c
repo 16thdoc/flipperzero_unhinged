@@ -91,7 +91,6 @@ static void display_test_reload_config(DisplayTest* instance) {
         instance->config_contrast,
         instance->config_regulation_ratio,
         instance->config_bias);
-    gui_update(instance->gui);
 }
 
 static void display_config_set_bias(VariableItem* item) {
@@ -122,7 +121,7 @@ static void display_config_set_contrast(VariableItem* item) {
     display_test_reload_config(instance);
 }
 
-DisplayTest* display_test_alloc() {
+DisplayTest* display_test_alloc(void) {
     DisplayTest* instance = malloc(sizeof(DisplayTest));
 
     View* view = NULL;

@@ -23,7 +23,15 @@ typedef struct {
     uint16_t cluster_size;
     uint16_t sector_size;
     char label[SD_LABEL_LENGTH];
-    FS_Error error;
+
+    uint8_t manufacturer_id;
+    char oem_id[3];
+    char product_name[6];
+    uint8_t product_revision_major;
+    uint8_t product_revision_minor;
+    uint32_t product_serial_number;
+    uint8_t manufacturing_month;
+    uint16_t manufacturing_year;
 } SDInfo;
 
 const char* sd_api_get_fs_type_text(SDFsType fs_type);

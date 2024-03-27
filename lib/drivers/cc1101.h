@@ -46,8 +46,10 @@ CC1101Status cc1101_read_reg(FuriHalSpiBusHandle* handle, uint8_t reg, uint8_t* 
 /** Reset
  *
  * @param      handle  - pointer to FuriHalSpiHandle
+ * 
+ * @return     CC1101Status structure
  */
-void cc1101_reset(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_reset(FuriHalSpiBusHandle* handle);
 
 /** Get status
  *
@@ -57,11 +59,23 @@ void cc1101_reset(FuriHalSpiBusHandle* handle);
  */
 CC1101Status cc1101_get_status(FuriHalSpiBusHandle* handle);
 
+/** Wait specific chip state
+ *
+ * @param      handle      The SPI bus handle
+ * @param[in]  state       The state to wait
+ * @param[in]  timeout_us  The timeout in microseconds
+ *
+ * @return     true on success, false otherwise
+ */
+bool cc1101_wait_status_state(FuriHalSpiBusHandle* handle, CC1101State state, uint32_t timeout_us);
+
 /** Enable shutdown mode
  *
  * @param      handle  - pointer to FuriHalSpiHandle
+ * 
+ * @return     CC1101Status structure
  */
-void cc1101_shutdown(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_shutdown(FuriHalSpiBusHandle* handle);
 
 /** Get Partnumber
  *
@@ -90,38 +104,46 @@ uint8_t cc1101_get_rssi(FuriHalSpiBusHandle* handle);
 /** Calibrate oscillator
  *
  * @param      handle  - pointer to FuriHalSpiHandle
+ * 
+ * @return     CC1101Status structure
  */
-void cc1101_calibrate(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_calibrate(FuriHalSpiBusHandle* handle);
 
 /** Switch to idle
  *
  * @param      handle  - pointer to FuriHalSpiHandle
  */
-void cc1101_switch_to_idle(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_switch_to_idle(FuriHalSpiBusHandle* handle);
 
 /** Switch to RX
  *
  * @param      handle  - pointer to FuriHalSpiHandle
+ * 
+ * @return     CC1101Status structure
  */
-void cc1101_switch_to_rx(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_switch_to_rx(FuriHalSpiBusHandle* handle);
 
 /** Switch to TX
  *
  * @param      handle  - pointer to FuriHalSpiHandle
+ * 
+ * @return     CC1101Status structure
  */
-void cc1101_switch_to_tx(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_switch_to_tx(FuriHalSpiBusHandle* handle);
 
 /** Flush RX FIFO
  *
  * @param      handle  - pointer to FuriHalSpiHandle
+ * 
+ * @return     CC1101Status structure
  */
-void cc1101_flush_rx(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_flush_rx(FuriHalSpiBusHandle* handle);
 
 /** Flush TX FIFO
  *
  * @param      handle  - pointer to FuriHalSpiHandle
  */
-void cc1101_flush_tx(FuriHalSpiBusHandle* handle);
+CC1101Status cc1101_flush_tx(FuriHalSpiBusHandle* handle);
 
 /** Set Frequency
  *

@@ -28,7 +28,8 @@ typedef enum {
     UpdatePrepareResultManifestInvalid,
     UpdatePrepareResultStageMissing,
     UpdatePrepareResultStageIntegrityError,
-    UpdatePrepareResultManifestPointerError,
+    UpdatePrepareResultManifestPointerCreateError,
+    UpdatePrepareResultManifestPointerCheckError,
     UpdatePrepareResultTargetMismatch,
     UpdatePrepareResultOutdatedManifestVersion,
     UpdatePrepareResultIntFull,
@@ -55,12 +56,12 @@ bool update_operation_get_current_package_manifest_path(Storage* storage, FuriSt
 /* 
  * Checks if an update operation step is pending after reset
  */
-bool update_operation_is_armed();
+bool update_operation_is_armed(void);
 
 /* 
  * Cancels pending update operation
  */
-void update_operation_disarm();
+void update_operation_disarm(void);
 
 #ifdef __cplusplus
 }

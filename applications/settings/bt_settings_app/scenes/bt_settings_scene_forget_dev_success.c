@@ -1,5 +1,5 @@
 #include "../bt_settings_app.h"
-#include "furi_hal_bt.h"
+#include <furi_hal_bt.h>
 
 void bt_settings_app_scene_forget_dev_success_popup_callback(void* context) {
     BtSettingsApp* app = context;
@@ -10,7 +10,7 @@ void bt_settings_scene_forget_dev_success_on_enter(void* context) {
     BtSettingsApp* app = context;
     Popup* popup = app->popup;
 
-    popup_set_icon(popup, 32, 5, &I_DolphinNice_96x59);
+    popup_set_icon(popup, 48, 6, &I_DolphinDone_80x58);
     popup_set_header(popup, "Done", 14, 15, AlignLeft, AlignTop);
     popup_set_timeout(popup, 1500);
     popup_set_context(popup, app);

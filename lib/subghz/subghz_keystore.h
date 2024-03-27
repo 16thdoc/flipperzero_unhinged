@@ -24,7 +24,7 @@ typedef struct SubGhzKeystore SubGhzKeystore;
  * Allocate SubGhzKeystore.
  * @return SubGhzKeystore* pointer to a SubGhzKeystore instance
  */
-SubGhzKeystore* subghz_keystore_alloc();
+SubGhzKeystore* subghz_keystore_alloc(void);
 
 /**
  * Free SubGhzKeystore.
@@ -74,6 +74,8 @@ bool subghz_keystore_raw_encrypted_save(
  * @return true On success
  */
 bool subghz_keystore_raw_get_data(const char* file_name, size_t offset, uint8_t* data, size_t len);
+
+void subghz_keystore_reset_kl(SubGhzKeystore* instance);
 
 #ifdef __cplusplus
 }

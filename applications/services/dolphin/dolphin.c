@@ -1,7 +1,6 @@
 #include "dolphin/dolphin.h"
 #include "dolphin/helpers/dolphin_state.h"
 #include "dolphin_i.h"
-#include "portmacro.h"
 #include "projdefs.h"
 #include <furi_hal.h>
 #include <stdint.h>
@@ -9,20 +8,21 @@
 #define DOLPHIN_LOCK_EVENT_FLAG (0x1)
 
 #define TAG "Dolphin"
-#define HOURS_IN_TICKS(x) ((x)*60 * 60 * 1000)
+#define HOURS_IN_TICKS(x) ((x) * 60 * 60 * 1000)
 
 static void dolphin_update_clear_limits_timer_period(Dolphin* dolphin);
 
-void dolphin_deed(Dolphin* dolphin, DolphinDeed deed) {
-    furi_assert(dolphin);
+void dolphin_deed(DolphinDeed deed) {
+    Dolphin* dolphin = (Dolphin*)furi_record_open(RECORD_DOLPHIN);
     DolphinEvent event;
     event.type = DolphinEventTypeDeed;
     event.deed = deed;
     dolphin_event_send_async(dolphin, &event);
+    furi_record_close(RECORD_DOLPHIN);
 }
 
 DolphinStats dolphin_stats(Dolphin* dolphin) {
-    furi_assert(dolphin);
+    furi_check(dolphin);
 
     DolphinStats stats;
     DolphinEvent event;
@@ -36,7 +36,7 @@ DolphinStats dolphin_stats(Dolphin* dolphin) {
 }
 
 void dolphin_flush(Dolphin* dolphin) {
-    furi_assert(dolphin);
+    furi_check(dolphin);
 
     DolphinEvent event;
     event.type = DolphinEventTypeFlush;
@@ -44,8 +44,8 @@ void dolphin_flush(Dolphin* dolphin) {
     dolphin_event_send_wait(dolphin, &event);
 }
 
-void dolphin_butthurt_timer_callback(TimerHandle_t xTimer) {
-    Dolphin* dolphin = pvTimerGetTimerID(xTimer);
+void dolphin_butthurt_timer_callback(void* context) {
+    Dolphin* dolphin = context;
     furi_assert(dolphin);
 
     DolphinEvent event;
@@ -53,8 +53,8 @@ void dolphin_butthurt_timer_callback(TimerHandle_t xTimer) {
     dolphin_event_send_async(dolphin, &event);
 }
 
-void dolphin_flush_timer_callback(TimerHandle_t xTimer) {
-    Dolphin* dolphin = pvTimerGetTimerID(xTimer);
+void dolphin_flush_timer_callback(void* context) {
+    Dolphin* dolphin = context;
     furi_assert(dolphin);
 
     DolphinEvent event;
@@ -62,40 +62,31 @@ void dolphin_flush_timer_callback(TimerHandle_t xTimer) {
     dolphin_event_send_async(dolphin, &event);
 }
 
-void dolphin_clear_limits_timer_callback(TimerHandle_t xTimer) {
-    Dolphin* dolphin = pvTimerGetTimerID(xTimer);
+void dolphin_clear_limits_timer_callback(void* context) {
+    Dolphin* dolphin = context;
     furi_assert(dolphin);
 
-    xTimerChangePeriod(dolphin->clear_limits_timer, HOURS_IN_TICKS(24), portMAX_DELAY);
+    furi_timer_start(dolphin->clear_limits_timer, HOURS_IN_TICKS(24));
 
     DolphinEvent event;
     event.type = DolphinEventTypeClearLimits;
     dolphin_event_send_async(dolphin, &event);
 }
 
-Dolphin* dolphin_alloc() {
+Dolphin* dolphin_alloc(void) {
     Dolphin* dolphin = malloc(sizeof(Dolphin));
 
     dolphin->state = dolphin_state_alloc();
     dolphin->event_queue = furi_message_queue_alloc(8, sizeof(DolphinEvent));
     dolphin->pubsub = furi_pubsub_alloc();
-    dolphin->butthurt_timer = xTimerCreate(
-        NULL, HOURS_IN_TICKS(2 * 24), pdTRUE, dolphin, dolphin_butthurt_timer_callback);
+    dolphin->butthurt_timer =
+        furi_timer_alloc(dolphin_butthurt_timer_callback, FuriTimerTypePeriodic, dolphin);
     dolphin->flush_timer =
-        xTimerCreate(NULL, 30 * 1000, pdFALSE, dolphin, dolphin_flush_timer_callback);
-    dolphin->clear_limits_timer = xTimerCreate(
-        NULL, HOURS_IN_TICKS(24), pdTRUE, dolphin, dolphin_clear_limits_timer_callback);
+        furi_timer_alloc(dolphin_flush_timer_callback, FuriTimerTypeOnce, dolphin);
+    dolphin->clear_limits_timer =
+        furi_timer_alloc(dolphin_clear_limits_timer_callback, FuriTimerTypePeriodic, dolphin);
 
     return dolphin;
-}
-
-void dolphin_free(Dolphin* dolphin) {
-    furi_assert(dolphin);
-
-    dolphin_state_free(dolphin->state);
-    furi_message_queue_free(dolphin->event_queue);
-
-    free(dolphin);
 }
 
 void dolphin_event_send_async(Dolphin* dolphin, DolphinEvent* event) {
@@ -128,19 +119,20 @@ void dolphin_event_release(Dolphin* dolphin, DolphinEvent* event) {
 }
 
 FuriPubSub* dolphin_get_pubsub(Dolphin* dolphin) {
+    furi_check(dolphin);
     return dolphin->pubsub;
 }
 
 static void dolphin_update_clear_limits_timer_period(Dolphin* dolphin) {
     furi_assert(dolphin);
-    TickType_t now_ticks = xTaskGetTickCount();
-    TickType_t timer_expires_at = xTimerGetExpiryTime(dolphin->clear_limits_timer);
+    uint32_t now_ticks = furi_get_tick();
+    uint32_t timer_expires_at = furi_timer_get_expire_time(dolphin->clear_limits_timer);
 
     if((timer_expires_at - now_ticks) > HOURS_IN_TICKS(0.1)) {
-        FuriHalRtcDateTime date;
+        DateTime date;
         furi_hal_rtc_get_datetime(&date);
-        TickType_t now_time_in_ms = ((date.hour * 60 + date.minute) * 60 + date.second) * 1000;
-        TickType_t time_to_clear_limits = 0;
+        uint32_t now_time_in_ms = ((date.hour * 60 + date.minute) * 60 + date.second) * 1000;
+        uint32_t time_to_clear_limits = 0;
 
         if(date.hour < 5) {
             time_to_clear_limits = HOURS_IN_TICKS(5) - now_time_in_ms;
@@ -148,19 +140,25 @@ static void dolphin_update_clear_limits_timer_period(Dolphin* dolphin) {
             time_to_clear_limits = HOURS_IN_TICKS(24 + 5) - now_time_in_ms;
         }
 
-        xTimerChangePeriod(dolphin->clear_limits_timer, time_to_clear_limits, portMAX_DELAY);
+        furi_timer_start(dolphin->clear_limits_timer, time_to_clear_limits);
     }
 }
 
 int32_t dolphin_srv(void* p) {
     UNUSED(p);
+
+    if(furi_hal_rtc_get_boot_mode() != FuriHalRtcBootModeNormal) {
+        FURI_LOG_W(TAG, "Skipping start in special boot mode");
+        return 0;
+    }
+
     Dolphin* dolphin = dolphin_alloc();
     furi_record_create(RECORD_DOLPHIN, dolphin);
 
     dolphin_state_load(dolphin->state);
-    xTimerReset(dolphin->butthurt_timer, portMAX_DELAY);
+    furi_timer_restart(dolphin->butthurt_timer, HOURS_IN_TICKS(2 * 24));
     dolphin_update_clear_limits_timer_period(dolphin);
-    xTimerReset(dolphin->clear_limits_timer, portMAX_DELAY);
+    furi_timer_restart(dolphin->clear_limits_timer, HOURS_IN_TICKS(24));
 
     DolphinEvent event;
     while(1) {
@@ -170,8 +168,8 @@ int32_t dolphin_srv(void* p) {
                 dolphin_state_on_deed(dolphin->state, event.deed);
                 DolphinPubsubEvent event = DolphinPubsubEventUpdate;
                 furi_pubsub_publish(dolphin->pubsub, &event);
-                xTimerReset(dolphin->butthurt_timer, portMAX_DELAY);
-                xTimerReset(dolphin->flush_timer, portMAX_DELAY);
+                furi_timer_restart(dolphin->butthurt_timer, HOURS_IN_TICKS(2 * 24));
+                furi_timer_restart(dolphin->flush_timer, 30 * 1000);
             } else if(event.type == DolphinEventTypeStats) {
                 event.stats->icounter = dolphin->state->data.icounter;
                 event.stats->butthurt = dolphin->state->data.butthurt;
@@ -198,12 +196,14 @@ int32_t dolphin_srv(void* p) {
         }
     }
 
-    dolphin_free(dolphin);
+    furi_crash("That was unexpected");
 
     return 0;
 }
 
 void dolphin_upgrade_level(Dolphin* dolphin) {
+    furi_check(dolphin);
+
     dolphin_state_increase_level(dolphin->state);
     dolphin_flush(dolphin);
 }
